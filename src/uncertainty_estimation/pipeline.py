@@ -1,25 +1,16 @@
-"""Main pipeline skeleton for 3D reconstruction with uncertainty estimation.
+"""Temporal uncertainty estimation pipeline for 3D reconstruction.
 
+Tracks features over N consecutive frames (monocular left camera). For each
+feature observed in multiple frames, every pair of frames triangulates an
+independent 3D estimate. The spread of these estimates gives an empirical 3D
+distribution —> this is the core uncertainty model.
 
-Two pipeline modes:
+Rather than propagating assumed 2D noise analytically, we observe actual
+geometric disagreement across multiple views and fit a Gaussian to it.
 
-  Stereo (--mode stereo):
-    Uses a single left/right frame pair. Projection matrices P0/P1 come from
-    calibration
-
-  Temporal (--mode temporal, default):
-    Tracks features over N consecutive frames (monocular left camera). For each
-    feature observed in multiple frames, every pair of frames triangulates an
-    independent 3D estimate. The spread of these estimates gives an empirical 3D
-    distribution —> this is the core uncertainty model.
-
-    This is different from the stereo analytical Jacobian approach: rather than
-    propagating assumed 2D noise, we observe actual geometric disagreement across
-    multiple views and fit a Gaussian to it.
-
- can run this file directly to test pipeline on KITTI:
+Run directly to test on KITTI or ETH3D:
     uv run python -m uncertainty_estimation.pipeline --sequence path/to/sequences/00
-    uv run python -m uncertainty_estimation.pipeline --sequence path/to/sequences/00 --mode stereo
+    uv run python -m uncertainty_estimation.pipeline --sequence path/to/cables_1 --dataset eth3d
 """
 
 import argparse
@@ -28,80 +19,12 @@ import cv2
 
 from uncertainty_estimation.data.kitti import KITTISequence
 from uncertainty_estimation.data.eth3d import ETH3DSequence
-from uncertainty_estimation.visualization.matches import draw_matches, draw_epipolar_lines, draw_features_by_depth
-from uncertainty_estimation.visualization.point_cloud import (
-    visualize_point_cloud,
-    visualize_point_cloud_with_uncertainty,
-    visualize_cameras,
-    visualize_reconstruction,
-)
-from uncertainty_estimation.evaluation.metrics import (
-    reprojection_error,
-    mean_reprojection_error,
-    uncertainty_calibration,
-)
+from uncertainty_estimation.visualization.matches import draw_features_by_depth
+from uncertainty_estimation.visualization.point_cloud import visualize_reconstruction
 
 
 # =============================================================================
-# STEP 1: Feature detection and description
-# =============================================================================
-
-def detect_and_describe(image: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Detect keypoints and compute descriptors for a single image.
-
-    TODO: Implement this feature detector.
-    SIFT, ORB, or even Harris corners + a descriptor.
-    Args:
-        image: grayscale image (H, W) as uint8.
-
-    Returns:
-        keypoints: (N, 2) array of (u, v) pixel coordinates.
-        descriptors: (N, D) array of feature descriptors.
-    """
-    sift = cv2.SIFT_create()
-    keypoints_cv, descriptors = sift.detectAndCompute(image, None)
-    keypoints = np.array([kp.pt for kp in keypoints_cv], dtype=np.float32)
-    return keypoints, descriptors
-
-
-# =============================================================================
-# STEP 2: Feature matching
-# =============================================================================
-
-def match_features(
-    desc1: np.ndarray,
-    desc2: np.ndarray,
-    kp1: np.ndarray,
-    kp2: np.ndarray,
-) -> np.ndarray:
-    """Match features between two images.
-
-    TODO: Implement this. Things to consider:
-        - Brute-force vs FLANN matching
-        - Lowe's ratio test — why does it work?
-        - Cross-check matching — what does it guarantee?
-        - Could you also use spatial consistency checks?
-
-    Args:
-        desc1: (N, D) descriptors from image 1.
-        desc2: (M, D) descriptors from image 2.
-        kp1: (N, 2) keypoints from image 1.
-        kp2: (M, 2) keypoints from image 2.
-
-    Returns:
-        matches: (K, 2) array where matches[i] = [idx_in_desc1, idx_in_desc2].
-    """
-    bf = cv2.BFMatcher()
-    matches = bf.knnMatch(desc1, desc2, k=2)
-    good_matches = []
-    for m, n in matches:
-        if m.distance < 0.75 * n.distance:
-            good_matches.append([m.queryIdx, m.trainIdx])
-    return np.array(good_matches, dtype=np.int32)
-
-
-# =============================================================================
-# STEP 3: Fundamental / Essential matrix estimation
+# STEP 1: Fundamental / Essential matrix estimation
 # =============================================================================
 
 def estimate_fundamental(
@@ -149,7 +72,7 @@ def fundamental_to_essential(F: np.ndarray, K1: np.ndarray, K2: np.ndarray) -> n
 
 
 # =============================================================================
-# STEP 4: Pose recovery
+# STEP 2: Pose recovery
 # =============================================================================
 
 def recover_pose(
@@ -189,7 +112,7 @@ def recover_pose(
 
 
 # =============================================================================
-# STEP 5: Triangulation
+# STEP 3: Triangulation
 # =============================================================================
 
 def triangulate_points(
@@ -511,85 +434,6 @@ def run_temporal_pipeline(sequence_path: str, start_frame: int = 0, n_frames: in
     )
 
 
-def run_pipeline(sequence_path: str, frame_idx: int = 0, dataset: str = "kitti"):
-    """Run the full pipeline on a stereo pair.
-
-    This wires together all your implementations using the scaffolding.
-    Note: stereo mode requires a dataset with a valid stereo baseline (KITTI).
-    """
-    import matplotlib.pyplot as plt
-
-    # --- Load data ---
-    print(f"Loading {dataset} sequence from: {sequence_path}")
-    seq = _load_sequence(sequence_path, dataset)
-    calib = seq.calibration
-    frame = seq[frame_idx]
-
-    print(f"Sequence has {len(seq)} frames")
-    print(f"Image size: {frame.left.shape}")
-    print(f"Stereo baseline: {calib.baseline:.4f} meters")
-
-    left = frame.left
-    right = frame.right
-
-    # For stereo, we know the projection matrices directly
-    P_left = calib.P0
-    P_right = calib.P1
-    K = calib.K_left
-
-    # --- Step 1: Feature detection ---
-    print("\n[Step 1] Detecting features...")
-    kp1, desc1 = detect_and_describe(left)
-    kp2, desc2 = detect_and_describe(right)
-    print(f"  Left: {len(kp1)} keypoints, Right: {len(kp2)} keypoints")
-
-    # --- Step 2: Feature matching ---
-    print("\n[Step 2] Matching features...")
-    matches = match_features(desc1, desc2, kp1, kp2)
-    print(f"  {len(matches)} matches found")
-
-    # Visualize matches
-    fig = draw_matches(left, kp1, right, kp2, matches, title="Stereo Matches")
-    plt.show()
-
-    # --- Step 3: Fundamental matrix ---
-    print("\n[Step 3] Estimating fundamental matrix...")
-    F, inlier_mask = estimate_fundamental(kp1, kp2, matches)
-    n_inliers = inlier_mask.sum()
-    print(f"  {n_inliers}/{len(matches)} inliers")
-
-    # Visualize epipolar lines (should be horizontal for rectified stereo!)
-    inlier_matches = matches[inlier_mask]
-    pts1_matched = kp1[inlier_matches[:, 0]]
-    pts2_matched = kp2[inlier_matches[:, 1]]
-
-    lines = cv2.computeCorrespondEpilines(pts1_matched.reshape(-1, 1, 2), 1, F)
-    lines = lines.reshape(-1, 3)
-    fig = draw_epipolar_lines(right, lines[:20], pts2_matched[:20],
-                               title="Epipolar Lines (should be horizontal for rectified stereo)")
-    plt.show()
-
-    # --- Step 5: Triangulation ---
-    # For KITTI stereo, we can skip step 4 (pose recovery) since we already
-    # have P0 and P1 from calibration. 
-    print("\n[Step 5] Triangulating points...")
-    points_3d = triangulate_points(P_left, P_right, pts1_matched, pts2_matched)
-    print(f"  Triangulated {len(points_3d)} 3D points")
-
-    # Evaluate triangulation
-    reproj_err = mean_reprojection_error(points_3d, pts1_matched, P_left)
-    print(f"  Mean reprojection error (left): {reproj_err:.2f} px")
-
-    # --- Step 6: Uncertainty estimation ---
-    print("\n[Step 6] Estimating 3D uncertainty...")
-    covariances = estimate_uncertainty(P_left, P_right, pts1_matched, pts2_matched)
-
-    # --- Visualize results ---
-    print("\nVisualizing 3D point cloud with uncertainty...")
-    visualize_point_cloud_with_uncertainty(
-        points_3d, covariances,
-        title="Triangulated Points with Uncertainty Ellipsoids",
-    )
 
 
 if __name__ == "__main__":
@@ -601,16 +445,11 @@ if __name__ == "__main__":
                              "(KITTI: dataset/sequences/00  |  ETH3D: path/to/cables_1)")
     parser.add_argument("--dataset", type=str, default="kitti", choices=["kitti", "eth3d"],
                         help="Dataset type (default: kitti)")
-    parser.add_argument("--mode", type=str, default="temporal", choices=["stereo", "temporal"],
-                        help="Pipeline mode: 'temporal' tracks features across N frames (default), "
-                             "'stereo' uses a single left/right pair (KITTI only)")
     parser.add_argument("--frame", type=int, default=0,
                         help="Starting frame index (default: 0)")
     parser.add_argument("--n-frames", type=int, default=5,
                         help="Number of consecutive frames to use in temporal mode (default: 5)")
     args = parser.parse_args()
 
-    if args.mode == "temporal":
-        run_temporal_pipeline(args.sequence, args.frame, args.n_frames, dataset=args.dataset)
-    else:
-        run_pipeline(args.sequence, args.frame, dataset=args.dataset)
+    
+    run_temporal_pipeline(args.sequence, args.frame, args.n_frames, dataset=args.dataset)
