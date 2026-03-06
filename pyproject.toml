@@ -3,14 +3,18 @@ name = "uncertainty-estimation"
 version = "0.1.0"
 description = "3D point cloud uncertainty estimation from multi-view feature matching"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = "==3.11.*"
 dependencies = [
     "numpy",
     "opencv-python",
     "open3d",
     "matplotlib",
     "scipy",
+    "gtsam",
 ]
+
+[tool.uv.sources]
+gtsam = { path = "wheels/gtsam-4.3a1-cp311-cp311-macosx_26_0_arm64.whl" }
 
 [build-system]
 requires = ["hatchling"]
