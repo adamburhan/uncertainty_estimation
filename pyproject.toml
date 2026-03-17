@@ -11,6 +11,14 @@ dependencies = [
     "matplotlib",
     "scipy",
     "gtsam",
+    "torch",
+    "torchvision",
+    "wandb",
+    "omegaconf",
+    "hydra-core",
+    "pyyaml",
+    "scikit-image",
+    "tensorboard",
 ]
 
 [tool.uv.sources]

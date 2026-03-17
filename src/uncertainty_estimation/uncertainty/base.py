@@ -51,7 +51,10 @@ class UncertaintyEstimator(ABC):
         poses: list[tuple[np.ndarray, np.ndarray]],
         K: np.ndarray,
         images: list[np.ndarray] | None = None,
-    ) -> dict[tuple[int, int], np.ndarray]:
+    ) -> tuple[
+    dict[tuple[int, int], np.ndarray],  # (tid, fid) -> 2x2 cov 
+    dict[int, np.ndarray],               # tid -> mean_3d landmark
+    ]:
         """Estimate a 2×2 observation covariance for every (track, frame) pair.
 
         Args:

@@ -166,9 +166,7 @@ if __name__ == "__main__":
         ("isotropic sigma=5",  IsotropicUncertainty(sigma=5.0),  "tab:red"),
         ("isotropic sigma=30",  IsotropicUncertainty(sigma=30.0),  "tab:purple"),
         ("isotropic sigma=50",  IsotropicUncertainty(sigma=50.0),  "tab:brown"),
-        ("temporal t=4",   TemporalUncertainty(max_depth=10.0, min_frame_gap=3, target_median_trace=4.0),  "tab:green"),
-        ("temporal t=16",  TemporalUncertainty(max_depth=10.0, min_frame_gap=3, target_median_trace=16.0), "tab:olive"),
-        ("temporal t=64",  TemporalUncertainty(max_depth=10.0, min_frame_gap=3, target_median_trace=64.0), "tab:cyan"),
+        ("temporal",  TemporalUncertainty(max_depth=1000.0, min_frame_gap=3, target_median_trace=64.0), "tab:cyan"),
     ]
 
     def run_suite(perturbed_poses, label_prefix):
