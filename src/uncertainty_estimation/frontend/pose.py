@@ -7,6 +7,7 @@ Inputs:  matched 2D keypoints, camera intrinsics K
 Outputs: relative pose (R, t), triangulated 3D points
 """
 
+import cv2
 import numpy as np
 
 
@@ -27,7 +28,9 @@ def estimate_relative_pose(
         t:            (3,)   unit translation.
         inlier_mask:  (N,)   bool, True for RANSAC inliers.
     """
-    raise NotImplementedError
+    E, mask = cv2.findEssentialMat(pts1, pts2, K, method=cv2.RANSAC, prob=0.999, threshold=1.0)
+    _, R, t, mask = cv2.recoverPose(E, pts1, pts2, K, mask=mask)
+    return R, t.ravel(), mask.ravel().astype(bool)
 
 
 def triangulate(
@@ -45,6 +48,8 @@ def triangulate(
         pts2: (N, 2) points in frame 2.
 
     Returns:
-        points_3d: (N, 3) triangulated 3D points in world coordinates.
+        points_3d: (N, 3) triangulated 3D points in the frame of P1.
     """
-    raise NotImplementedError
+    pts4d = cv2.triangulatePoints(P1, P2, pts1.T, pts2.T)  # (4, N)
+    pts3d = (pts4d[:3] / pts4d[3]).T                        # (N, 3)
+    return pts3d

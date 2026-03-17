@@ -175,7 +175,7 @@ class TemporalUncertainty(UncertaintyEstimator):
         for tid, obs in tracks.items():
             points_3d = _triangulate_all(obs, poses, K, max_depth=self.max_depth, min_frame_gap=self.min_frame_gap)
 
-            if len(points_3d) < 2:
+            if len(points_3d) < 5:
                 continue
 
             mean_3d = points_3d.mean(axis=0)   # (3,)
