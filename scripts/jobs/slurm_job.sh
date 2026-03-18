@@ -2,7 +2,7 @@
 #SBATCH --job-name=stereo_ssl
 #SBATCH --output=logs/stereo_ssl_%j.out
 #SBATCH --error=logs/stereo_ssl_%j.err
-#SBATCH --account=def-lpaull
+#SBATCH --account=rrg-lpaull
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
 #SBATCH --ntasks=1
