@@ -91,15 +91,10 @@ def extract_covs(
     H, W = img_covs.shape[1], img_covs.shape[2]
 
     def sample(covs, kps):
-        # grid_sample requires coordinates in [-1, +1], not pixels -> normalize kps accordingly
-        # covs: B, H, W, 2, 2  →  grid_sample expects B, C, H, W
-        # kps: B, P, 2 (xy pixel coords)
-        norm = kps.clone().float()
-        norm[..., 0] = (kps[..., 0] * 2.0 / (W - 1)) - 1.0  # x
-        norm[..., 1] = (kps[..., 1] * 2.0 / (H - 1)) - 1.0  # y
-        flat = covs.flatten(-2, -1).permute(0, 3, 1, 2)  # B, 4, H, W
-        out = torch.nn.functional.grid_sample(flat, norm[:, None, :, :], mode="nearest", align_corners=True)
-        # out: B, 4, 1, P  →  B, P, 2, 2
-        return out[:, :, 0, :].permute(0, 2, 1).reshape(B, -1, 2, 2)
+        # kps: B, P, 2 (x=col, y=row) — nearest-neighbour lookup via integer indexing
+        col = kps[..., 0].round().long().clamp(0, W - 1)  # B, P
+        row = kps[..., 1].round().long().clamp(0, H - 1)  # B, P
+        b_idx = torch.arange(B, device=kps.device).unsqueeze(1).expand(B, col.shape[1])
+        return covs[b_idx, row, col]  # B, P, 2, 2
 
     return sample(left_covs, left_kps), sample(right_covs, right_kps)

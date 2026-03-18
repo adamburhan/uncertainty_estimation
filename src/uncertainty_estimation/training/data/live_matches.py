@@ -2,14 +2,14 @@ from abc import abstractmethod
 from math import sqrt
 from pathlib import Path
 from typing import Dict, List, Tuple
+import numpy as np
 
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import ColorJitter
-
 from uncertainty_estimation.training.data.batch import StereoBatch
 from uncertainty_estimation.training.data.common import StereoFrameMetadata
 from uncertainty_estimation.training.data.config import DatasetConfig
+from uncertainty_estimation.training.data.augmentations.random_crop import RandomCropWithIntrinsics
 
 
 class LiveStereoDataset(Dataset):
@@ -19,6 +19,7 @@ class LiveStereoDataset(Dataset):
         self.cfg = dataset_config
         self.split = split
         self.frames: List[StereoFrameMetadata] = self._build_index()
+        self.random_crop = RandomCropWithIntrinsics(size=self.cfg.image_augmentations.crop_size) if self.cfg.image_augmentations.random_crop else None
 
     def _build_index(self) -> List[StereoFrameMetadata]:
         frames = []
@@ -50,13 +51,13 @@ class LiveStereoDataset(Dataset):
             left  = torch.clamp(left  + noise_std * torch.randn_like(left),  0.0, 1.0)
             right = torch.clamp(right + noise_std * torch.randn_like(right), 0.0, 1.0)
 
-        if self.cfg.image_augmentations.random_crop:
-            left, right, K = self._random_crop(left, right, meta.K.clone())
+        K = meta.K.clone()
+        if self.random_crop is not None:
+            [left, right], [K, _] = self.random_crop([left, right], [K, K.clone()])
         else:
             h, w = self.cfg.image_augmentations.crop_size
             left  = left[..., :h, :w]
             right = right[..., :h, :w]
-            K = meta.K.clone()
 
         return {
             "images":   torch.stack([left, right]),
@@ -66,12 +67,14 @@ class LiveStereoDataset(Dataset):
         }
 
     def _load_image(self, path: Path) -> torch.Tensor:
-        raise NotImplementedError
+        def img2tensor(img: np.ndarray, precision: torch.dtype) -> torch.Tensor:
+            if img.ndim == 3:
+                return torch.from_numpy(img).float().permute(2, 0, 1) / 255.0
+            return (torch.from_numpy(img).float() / 255.0).unsqueeze(0)
 
-    def _random_crop(
-        self, left: torch.Tensor, right: torch.Tensor, K: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        raise NotImplementedError
+        from skimage import io
+        img = io.imread(path.resolve())
+        return img2tensor(img, torch.float32)
 
     @abstractmethod
     def get_img_path(self, sequence: str, idx: int, side: str) -> Path:

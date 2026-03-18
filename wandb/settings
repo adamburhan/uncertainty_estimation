@@ -1,0 +1,4 @@
+[default]
+entity = udem-mila
+project = stereo-covariance-estimation
+

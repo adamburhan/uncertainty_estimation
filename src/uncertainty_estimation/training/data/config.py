@@ -21,6 +21,12 @@ class ImageAugmentationConfig:
 
 
 @dataclass
+class MatchingConfig:
+    algorithm: str = "orb"
+    max_points: int = 500
+
+
+@dataclass
 class DatasetConfig:
     name: str = MISSING
     directories: DatasetDirectoriesConfig = field(default_factory=DatasetDirectoriesConfig)

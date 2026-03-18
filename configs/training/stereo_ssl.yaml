@@ -1,15 +1,46 @@
 # Starter configuration scaffold for stereo self-supervised covariance training.
-# The first real trainer implementation will read from this file.
 
 dataset:
   name: kitti
-  root: ""
+  directories:
+    dataset: /Volumes/T9/datasets/KITTI/odometry_gray/sequences/
+    sequences:
+      train: ["04"]
+      val: ["04"]
+    left_images: "image_0"
+    right_images: "image_1"
+
+image_augmentations:
+  crop_size: [300, 1200]
+  random_crop: True
+  noise: False
+  noise_var: 0.0064
 
 model:
-  name: unet_covariance
+  base_model: UNetXS
+  output: sab
   isotropic_covariances: false
 
+optimizer:
+  name: adam
+
 training:
-  batch_size: 1
+  batch_size: 4
   learning_rate: 1.0e-4
-  num_epochs: 1
+  lr_gamma: 0.99995        # exponential LR decay per epoch
+  num_epochs: 50
+  device: mps
+  checkpoint_dir: checkpoints
+  checkpoint_interval: 5   # save every N epochs
+  validation_interval: 1   # run val loop every N epochs
+  vis_interval: 5          # log covariance visualizations every N epochs
+
+logging:
+  project_name: stereo_covariance_estimation
+  run_name: debug_run
+
+matching:
+  algorithm: orb
+  max_points: 200
+  max_hamming_distance: 64
+  max_epipolar_error: 2.0
