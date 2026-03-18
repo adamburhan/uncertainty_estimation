@@ -5,7 +5,7 @@ from matplotlib.colors import hsv_to_rgb
 import numpy as np
 import torch
 
-from uncertainty_estimation.math.common import make_positive_definite
+from uncertainty_estimation.geometry.common import make_positive_definite
 
 
 def covs_from_parameters(

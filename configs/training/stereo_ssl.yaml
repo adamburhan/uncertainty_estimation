@@ -1,0 +1,15 @@
+# Starter configuration scaffold for stereo self-supervised covariance training.
+# The first real trainer implementation will read from this file.
+
+dataset:
+  name: kitti
+  root: ""
+
+model:
+  name: unet_covariance
+  isotropic_covariances: false
+
+training:
+  batch_size: 1
+  learning_rate: 1.0e-4
+  num_epochs: 1

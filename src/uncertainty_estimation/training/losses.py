@@ -20,7 +20,7 @@ Call bearing_nll() directly from the training loop — its signature is richer.
 
 import torch
 
-from uncertainty_estimation.math.projections import linear, to_homogeneous, to_3d_cov
+from uncertainty_estimation.geometry.bearings import linear, to_homogeneous, to_3d_cov
 
 
 # ---------------------------------------------------------------------------
