@@ -5,6 +5,7 @@
 #SBATCH --account=def-lpaull
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=8
+#SBATCH --ntasks=1
 #SBATCH --mem=48G
 #SBATCH --time=12:00:00
 
