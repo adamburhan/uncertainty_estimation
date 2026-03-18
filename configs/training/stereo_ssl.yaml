@@ -3,7 +3,7 @@
 dataset:
   name: kitti
   directories:
-    dataset: /Volumes/T9/datasets/KITTI/odometry_gray/sequences/
+    dataset: /home/mila/a/adam.burhan/scratch/datasets/kitti/dataset/sequences
     sequences:
       train: ["04"]
       val: ["04"]
@@ -29,7 +29,7 @@ training:
   learning_rate: 1.0e-4
   lr_gamma: 0.99995        # exponential LR decay per epoch
   num_epochs: 50
-  device: mps
+  device: cuda
   checkpoint_dir: checkpoints
   checkpoint_interval: 5   # save every N epochs
   validation_interval: 1   # run val loop every N epochs
