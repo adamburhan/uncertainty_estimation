@@ -73,15 +73,15 @@ def train_step(
     K     = torch.linalg.inv(K_inv)  # B, 3, 3
     focal = K[:, 0, 0]               # B,  (f_x; assumes rectified stereo)
 
-    depth = _get_depth(depth_source, batch, left_kps, right_kps, focal, baseline, device, max_depth)
+    depth_left, depth_right = _get_depth(depth_source, batch, left_kps, right_kps, focal, baseline, device, max_depth)
 
     cov_preds = model(images)  # B*2, H, W, 2, 2
 
     left_covs, right_covs = extract_covs(cov_preds, left_kps, right_kps)  # B, P, 2, 2
 
     # Reproject both directions
-    right_kps_reproj = reproject(left_kps,  depth, K, T_lr)  # B, P, 2
-    left_kps_reproj  = reproject(right_kps, depth, K, T_rl)  # B, P, 2
+    right_kps_reproj = reproject(left_kps,  depth_left,  K, T_lr)  # B, P, 2
+    left_kps_reproj  = reproject(right_kps, depth_right, K, T_rl)  # B, P, 2
 
     # Mask out reprojected points that land outside the image
     H, W = images.shape[-2], images.shape[-1]
