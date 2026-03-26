@@ -107,28 +107,36 @@ class TartanAirLiveDataset(Dataset):
             else list(dataset_cfg.sequences_val)
         )
 
-        # Build index: list of (left_path, right_path, depth_path)
-        self.frames: List[Tuple[Path, Path, Path]] = []
+        # Build index: list of (left_path, right_path, depth_left_path, depth_right_path)
+        self.frames: List[Tuple[Path, Path, Path, Path]] = []
         root = Path(dataset_cfg.root)
         for env in dataset_cfg.environments:
             for seq in sequences:
                 seq_dir = _find_seq_dir(root, env, seq)
-                left_dir  = seq_dir / dataset_cfg.left_images
-                right_dir = seq_dir / dataset_cfg.right_images
-                depth_dir = seq_dir / "depth_lcam_front"
+                left_dir       = seq_dir / dataset_cfg.left_images
+                right_dir      = seq_dir / dataset_cfg.right_images
+                depth_left_dir = seq_dir / "depth_lcam_front"
+                depth_right_dir = seq_dir / "depth_rcam_front"
 
                 left_files  = sorted(p for p in left_dir.glob("*.png")  if not p.name.startswith("._"))
                 right_files = sorted(p for p in right_dir.glob("*.png") if not p.name.startswith("._"))
 
                 if self.depth_source == "gt":
-                    depth_files = sorted(p for p in depth_dir.glob("*.png") if not p.name.startswith("._"))
-                    if len(depth_files) != len(left_files):
+                    depth_left_files  = sorted(p for p in depth_left_dir.glob("*.png")  if not p.name.startswith("._"))
+                    depth_right_files = sorted(p for p in depth_right_dir.glob("*.png") if not p.name.startswith("._"))
+                    if len(depth_left_files) != len(left_files):
                         raise RuntimeError(
                             f"Frame count mismatch in {seq_dir}: "
-                            f"{len(left_files)} images vs {len(depth_files)} depth maps"
+                            f"{len(left_files)} images vs {len(depth_left_files)} left depth maps"
+                        )
+                    if len(depth_right_files) != len(left_files):
+                        raise RuntimeError(
+                            f"Frame count mismatch in {seq_dir}: "
+                            f"{len(left_files)} images vs {len(depth_right_files)} right depth maps"
                         )
                 else:
-                    depth_files = [None] * len(left_files)
+                    depth_left_files  = [None] * len(left_files)
+                    depth_right_files = [None] * len(left_files)
 
                 if len(left_files) != len(right_files):
                     raise RuntimeError(
@@ -136,8 +144,8 @@ class TartanAirLiveDataset(Dataset):
                         f"{len(left_files)} left vs {len(right_files)} right"
                     )
 
-                for lf, rf, df in zip(left_files, right_files, depth_files):
-                    self.frames.append((lf, rf, df))
+                for lf, rf, dlf, drf in zip(left_files, right_files, depth_left_files, depth_right_files):
+                    self.frames.append((lf, rf, dlf, drf))
 
         crop_size = tuple(aug_cfg.crop_size)
         self.random_crop = (
@@ -149,14 +157,15 @@ class TartanAirLiveDataset(Dataset):
         return len(self.frames)
 
     def __getitem__(self, idx: int) -> dict:
-        left_path, right_path, depth_path = self.frames[idx]
+        left_path, right_path, depth_left_path, depth_right_path = self.frames[idx]
 
         left  = _load_image(left_path)   # 1 or 3, H, W  float32 [0,1]
         right = _load_image(right_path)
 
-        depth = None
+        depth_left = depth_right = None
         if self.depth_source == "gt":
-            depth = _read_depth(depth_path)  # (H, W) float32, metres
+            depth_left  = _read_depth(depth_left_path)   # (H, W) float32, metres
+            depth_right = _read_depth(depth_right_path)  # (H, W) float32, metres
 
         # Gaussian noise (applied before crop so crop doesn't see edge effects)
         if self.aug_cfg.noise:
@@ -171,14 +180,16 @@ class TartanAirLiveDataset(Dataset):
             i, j, h, w = self.random_crop.get_params(left, self.random_crop.size)
             left,  K = self.random_crop.single_forward(left,  K,       i, j, h, w)
             right, _ = self.random_crop.single_forward(right, K.clone(), i, j, h, w)
-            if depth is not None:
-                depth = depth[i:i + h, j:j + w]
+            if depth_left is not None:
+                depth_left  = depth_left[i:i + h, j:j + w]
+                depth_right = depth_right[i:i + h, j:j + w]
         else:
             h, w = self.crop_size
             left  = left[...,  :h, :w]
             right = right[..., :h, :w]
-            if depth is not None:
-                depth = depth[:h, :w]
+            if depth_left is not None:
+                depth_left  = depth_left[:h, :w]
+                depth_right = depth_right[:h, :w]
 
         batch = {
             "images":   torch.stack([left, right]),   # 2, C, H, W
@@ -186,8 +197,9 @@ class TartanAirLiveDataset(Dataset):
             "T_lr":     _T_LR.clone(),                # 4, 4
             "baseline": torch.tensor(_BASELINE),      # scalar
         }
-        if depth is not None:
-            batch["depth_left"] = torch.from_numpy(depth.copy())  # H, W
+        if depth_left is not None:
+            batch["depth_left"]  = torch.from_numpy(depth_left.copy())   # H, W
+            batch["depth_right"] = torch.from_numpy(depth_right.copy())  # H, W
 
         return batch
 
