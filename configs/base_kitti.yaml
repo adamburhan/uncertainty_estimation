@@ -1,0 +1,65 @@
+# Base config for KITTI stereo covariance training.
+# Usage:
+#   python scripts/train_stereo_cov.py --config-name base_kitti experiment.name=001_kitti
+
+# Hydra output dir — one folder per named experiment.
+hydra:
+  run:
+    dir: outputs/${experiment.name}
+
+experiment:
+  name: ???
+  hypothesis: ""
+
+dataset:
+  name: kitti
+  root: /home/mila/a/adam.burhan/scratch/datasets/kitti/dataset/sequences
+  environments: []          # unused for KITTI
+  sequences_train: ["00", "01", "02", "03", "04", "05", "06", "07", "08"]
+  sequences_val:   ["08", "09", "10"]
+  left_images:  image_0
+  right_images: image_1
+  depth_source: orb_disparity   # KITTI has no GT depth for training frames
+  max_depth: 200.0
+
+augmentation:
+  rotation: false
+  rotation_range: [0, 360]
+  random_crop: true
+  crop_size: [300, 1200]
+  noise: false
+  noise_var: 0.0064
+
+matching:
+  algorithm: orb
+  max_keypoints: 500
+  max_hamming: 64
+  max_epipolar_error: 2.0
+  sampson_threshold: 4.0
+
+loss:
+  name: bearing_nll
+
+model:
+  architecture: UNetXS
+  parameterization: sab
+  isotropic: false
+  checkpoint: null
+
+training:
+  batch_size: 8
+  lr: 1e-4
+  lr_gamma: 0.99995
+  epochs: 50
+  grad_clip: 1.0
+  checkpoint_interval: 5
+  validation_interval: 1
+  vis_interval: 5
+  device: cuda
+  num_workers: 4
+  seed: 42
+
+logging:
+  wandb_project: stereo_covariance
+  wandb_tags: []
+  wandb_offline: false

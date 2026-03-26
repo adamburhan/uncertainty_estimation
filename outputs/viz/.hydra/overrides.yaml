@@ -1,0 +1,2 @@
+- experiment.name=viz
+- model.checkpoint=checkpoints/best.pth

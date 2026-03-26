@@ -172,17 +172,38 @@ def energy_score_loss(_pred_cov: torch.Tensor, _target_cov: torch.Tensor) -> tor
 
 
 # ---------------------------------------------------------------------------
-# Registry (pixel-space losses only — bearing_nll is called directly)
+# Adapter: pixel_nll with the same calling convention as bearing_nll
 # ---------------------------------------------------------------------------
 
-LOSSES = {
-    "pixel_nll":    pixel_nll,
-    "beta_nll":     beta_nll_loss,
-    "energy_score": energy_score_loss,
+def _pixel_nll_adapted(
+    kp_obs: torch.Tensor,
+    kp_reproj: torch.Tensor,
+    sigma_u: torch.Tensor,
+    K_inv: torch.Tensor,
+) -> torch.Tensor:
+    """pixel_nll wrapped to match the bearing_nll signature used in the training loop."""
+    residuals = kp_reproj - kp_obs
+    return pixel_nll(sigma_u, residuals)
+
+
+# ---------------------------------------------------------------------------
+# Registry — all losses share the bearing_nll calling convention:
+#   (kp_obs, kp_reproj, sigma_u, K_inv) -> scalar
+# ---------------------------------------------------------------------------
+
+_ALL_LOSSES = {
+    "bearing_nll": bearing_nll,
+    "pixel_nll":   _pixel_nll_adapted,
 }
 
 
-def get_loss(name: str):
-    if name not in LOSSES:
-        raise ValueError(f"Unknown loss '{name}'. Available: {list(LOSSES)}")
-    return LOSSES[name]
+def build_loss(loss_cfg):
+    """Return the loss function specified by loss_cfg.name.
+
+    All returned callables have the signature:
+        loss_fn(kp_obs, kp_reproj, sigma_u, K_inv) -> scalar tensor
+    """
+    name = loss_cfg.name
+    if name not in _ALL_LOSSES:
+        raise ValueError(f"Unknown loss '{name}'. Available: {list(_ALL_LOSSES)}")
+    return _ALL_LOSSES[name]

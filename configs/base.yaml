@@ -1,0 +1,65 @@
+# Base config for TartanAir stereo covariance training.
+# Override any field from the command line:
+#   python scripts/train_stereo_cov.py experiment.name=001 loss.name=pixel_nll
+
+# Hydra output dir — one folder per named experiment.
+hydra:
+  run:
+    dir: outputs/${experiment.name}
+
+experiment:
+  name: ???         # REQUIRED — set via CLI: experiment.name=001_bearing_gt
+  hypothesis: ""    # free-text note logged with config
+
+dataset:
+  name: tartanair
+  root: /tmp/tartanair-v2
+  environments: [ArchVizTinyHouseDay]
+  sequences_train: [P000, P002, P003, P004, P005]
+  sequences_val:   [P001, P006]
+  left_images:  image_lcam_front
+  right_images: image_rcam_front
+  depth_source: gt          # "gt" | "orb_disparity" | "sgbm"
+  max_depth: 200.0
+
+augmentation:
+  rotation: false           # reserved; not yet implemented
+  rotation_range: [0, 360]
+  random_crop: true
+  crop_size: [480, 640]
+  noise: false
+  noise_var: 0.0064
+
+matching:
+  algorithm: orb
+  max_keypoints: 2000
+  max_hamming: 64
+  max_epipolar_error: 3.0
+  sampson_threshold: 4.0    # reserved for non-rectified matching
+
+loss:
+  name: bearing_nll         # "bearing_nll" | "pixel_nll"
+
+model:
+  architecture: UNetXS      # "UNetXS" | "UNetSmall" | "UNetM" | "UNet"
+  parameterization: sab     # "sab" | "entries" | "inv_entries"
+  isotropic: false
+  checkpoint: null          # path to resume from, or null
+
+training:
+  batch_size: 8
+  lr: 1e-4
+  lr_gamma: 0.99995
+  epochs: 50
+  grad_clip: 1.0
+  checkpoint_interval: 5
+  validation_interval: 1
+  vis_interval: 5
+  device: cuda
+  num_workers: 4
+  seed: 42
+
+logging:
+  wandb_project: stereo_covariance
+  wandb_tags: []
+  wandb_offline: false
