@@ -33,7 +33,7 @@ import hydra
 from uncertainty_estimation.matching.orb import ORB
 from uncertainty_estimation.models.factory import build_model
 from uncertainty_estimation.models.transforms import covs_to_image
-from uncertainty_estimation.training.data.kitti import KITTILiveDataset
+# from uncertainty_estimation.training.data.kitti import KITTILiveDataset
 from uncertainty_estimation.training.data.tartanair import TartanAirLiveDataset
 from uncertainty_estimation.training.losses import build_loss
 from uncertainty_estimation.training.trainer import eval_step, train_step
