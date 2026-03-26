@@ -41,7 +41,7 @@ mkdir -p /tmp/tartanair-v2
 
 cp -r "$root/ArchVizTinyHouseDay" /tmp/tartanair-v2/
 
-cd /tmp/tartanair-v2/ArchVizTinyHouseDay
+cd /tmp/tartanair-v2/ArchVizTinyHouseDay/Data_easy
 for zip in *.zip; do
     unzip -q -n "$zip"
 done
