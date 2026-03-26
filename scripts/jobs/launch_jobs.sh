@@ -1,5 +1,7 @@
 #!/bin/bash
 
+repo_dir=/home/mila/a/adam.burhan/repos/uncertainty_estimation
+cd "$repo_dir"
 
 for loss in bearing_nll pixel_nll; do
   for arch in UNetXS UNetSmall UNetM; do
