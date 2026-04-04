@@ -45,7 +45,7 @@ def _make_output_filter(parameterization: str) -> OutputFilter:
     raise ValueError(f"Unknown parameterization '{parameterization}'. Available: {list(_PARAM_REGISTRY)}")
 
 
-def build_model(model_cfg, device: torch.device) -> UnetCovarianceModel:
+def build_model(model_cfg) -> UnetCovarianceModel:
     """Build a UnetCovarianceModel from a model config node.
 
     Args:
@@ -61,8 +61,8 @@ def build_model(model_cfg, device: torch.device) -> UnetCovarianceModel:
     if param_name not in _PARAM_REGISTRY:
         raise ValueError(f"Unknown parameterization '{param_name}'. Available: {list(_PARAM_REGISTRY)}")
 
-    unet             = _UNET_REGISTRY[arch](n_channels=1, n_classes=3)
-    output_filter    = _make_output_filter(param_name)
+    unet = _UNET_REGISTRY[arch](n_channels=1, n_classes=3)
+    output_filter = _make_output_filter(param_name)
     parameterization = get_parametrization(_PARAM_REGISTRY[param_name])
 
     model = UnetCovarianceModel(
@@ -70,11 +70,6 @@ def build_model(model_cfg, device: torch.device) -> UnetCovarianceModel:
         output_filter=output_filter,
         parameterization=parameterization,
         model_cfg=type("Cfg", (), {"isotropic_covariances": model_cfg.isotropic})(),
-    ).to(device)
-
-    if model_cfg.checkpoint is not None:
-        ckpt = torch.load(model_cfg.checkpoint, map_location=device)
-        model.load_state_dict(ckpt["model"])
-        print(f"Loaded checkpoint: {model_cfg.checkpoint}")
+    )
 
     return model

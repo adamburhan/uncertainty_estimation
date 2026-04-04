@@ -24,8 +24,8 @@ class DatasetConfig:
     root: str = MISSING                        # path to dataset root
     # TartanAir: list of environment folders
     environments: List[str] = field(default_factory=lambda: ["ArchVizTinyHouseDay"])
-    sequences_train: List[str] = field(default_factory=lambda: ["P000", "P001", "P002", "P003", "P004"])
-    sequences_val: List[str] = field(default_factory=lambda: ["P005", "P006"])
+    sequences_train: List[str] = field(default_factory=lambda: ["P000", "P002", "P003", "P004", "P005"])
+    sequences_val: List[str] = field(default_factory=lambda: ["P001", "P006"])
     left_images: str = "image_lcam_front"      # subfolder for left images
     right_images: str = "image_rcam_front"     # subfolder for right images
     depth_source: str = "gt"                   # "gt" | "orb_disparity" | "sgbm"
@@ -45,9 +45,9 @@ class AugmentationConfig:
 @dataclass
 class MatchingConfig:
     algorithm: str = "orb"
-    max_keypoints: int = 500
+    max_keypoints: int = 2000
     max_hamming: int = 64
-    max_epipolar_error: float = 2.0     # for rectified stereo
+    max_epipolar_error: float = 3.0     # for rectified stereo
     sampson_threshold: float = 4.0      # reserved for non-rectified matching
 
 
@@ -66,7 +66,8 @@ class ModelConfig:
 
 @dataclass
 class TrainingConfig:
-    batch_size: int = 8
+    train_batch_size: int = 8
+    eval_batch_size: int = 8
     lr: float = 1e-4
     lr_gamma: float = 0.99995
     epochs: int = 50
@@ -81,6 +82,7 @@ class TrainingConfig:
 
 @dataclass
 class LoggingConfig:
+    log_dir: str = "checkpoints"
     wandb_project: str = "stereo_covariance"
     wandb_tags: List[str] = field(default_factory=list)
     wandb_offline: bool = False

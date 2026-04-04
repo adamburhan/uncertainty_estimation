@@ -47,7 +47,8 @@ model:
   checkpoint: null          # path to resume from, or null
 
 training:
-  batch_size: 8
+  train_batch_size: 8
+  eval_batch_size: 8
   lr: 1e-4
   lr_gamma: 0.99995
   epochs: 50
@@ -60,6 +61,7 @@ training:
   seed: 42
 
 logging:
+  log_dir: checkpoints
   wandb_project: stereo_covariance
   wandb_tags: []
   wandb_offline: false

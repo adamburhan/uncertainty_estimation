@@ -10,5 +10,3 @@ wheels/
 # Virtual environments
 .venv
 .claude
-
-dnls_covs/
