@@ -17,6 +17,7 @@ Batch output (same contract as KITTILiveDataset):
     baseline:    scalar tensor (metres)
     depth_left:  (H, W) float32 depth map in metres (after crop), only when
                  depth_source == "gt"; omitted otherwise.
+    depth_right: (H, W) float32 depth map in metres (after crop), also only when gt.
 """
 
 from math import sqrt

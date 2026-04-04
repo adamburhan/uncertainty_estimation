@@ -1,14 +1,15 @@
 """Stereo covariance training script — Hydra-configured.
 
 Launch:
-    python scripts/train_stereo_cov.py experiment.name=001_bearing_gt
+    python scripts/train_stereo_cov.py dataset=tartanair experiment.name=001_bearing_gt
+    python scripts/train_stereo_cov.py dataset=sss experiment.name=002_sss_h20cm
 
 Override any field:
     python scripts/train_stereo_cov.py \\
-        experiment.name=002_pixel_nll \\
+        dataset=sss \\
+        dataset.stereo_config=horizontal_50cm \\
+        experiment.name=003_sss_h50cm \\
         loss.name=pixel_nll \\
-        model.architecture=UNetSmall \\
-        dataset.depth_source=gt \\
         training.lr=5e-4
 """
 
@@ -28,6 +29,7 @@ import hydra
 from uncertainty_estimation.matching.orb import ORB
 from uncertainty_estimation.models.factory import build_model
 from uncertainty_estimation.training.data.tartanair import TartanAirLiveDataset
+from uncertainty_estimation.training.data.semistaticsim import SemiStaticSimStereoDataset
 from uncertainty_estimation.training.losses import build_loss
 from uncertainty_estimation.training.trainer import train_model
 
@@ -57,7 +59,9 @@ class DummyScheduler:
 def build_dataset(cfg: DictConfig, split: str):
     if cfg.dataset.name == "tartanair":
         return TartanAirLiveDataset(cfg.dataset, cfg.augmentation, split)
-    raise ValueError(f"Unknown dataset '{cfg.dataset.name}'. Available: tartanair")
+    if cfg.dataset.name == "semistaticsim":
+        return SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, split)
+    raise ValueError(f"Unknown dataset '{cfg.dataset.name}'. Available: tartanair, semistaticsim")
 
 
 # Main
