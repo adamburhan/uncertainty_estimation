@@ -1,11 +1,11 @@
 # @package hydra.launcher
 partition: long
-_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher # hydra_plugins.packed_launcher.packedlauncher.SlurmLauncher
+_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher
 cpus_per_task: 4
-mem_gb: 16
+mem_gb: 32
 tasks_per_node: 1
 stderr_to_stdout: False
-gres: gpu:1 #gpu:32gb:1 # gpu:rtx8000:1 # No MIG: gpu:32gb:1
+gres: gpu:1
 submitit_folder: ${hydra.sweep.dir}/submitit/%j
 timeout_min: 1440 # 2 days: 2880 ; 12h : 720 ; 1 day: 1440
 nodes: 1
