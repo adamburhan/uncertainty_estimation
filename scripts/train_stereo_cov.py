@@ -18,21 +18,14 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+
 import numpy as np
 import torch
-import wandb
 from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
 
 import hydra
 
-from uncertainty_estimation.matching.orb import ORB
-from uncertainty_estimation.models.factory import build_model
-from uncertainty_estimation.training.data.tartanair import TartanAirLiveDataset
-from uncertainty_estimation.training.data.semistaticsim import SemiStaticSimStereoDataset
-from uncertainty_estimation.training.losses import build_loss
-from uncertainty_estimation.training.trainer import train_model
 
 # Utilities
 
@@ -69,6 +62,17 @@ def build_dataset(cfg: DictConfig, split: str):
 
 @hydra.main(version_base=None, config_path="../configs", config_name="base")
 def main(cfg: DictConfig) -> None:
+    import matplotlib.pyplot as plt
+    import wandb
+
+    from uncertainty_estimation.matching.orb import ORB
+    from uncertainty_estimation.models.factory import build_model
+    from uncertainty_estimation.training.data.tartanair import TartanAirLiveDataset
+    from uncertainty_estimation.training.data.semistaticsim import SemiStaticSimStereoDataset
+    from uncertainty_estimation.training.losses import build_loss
+    from uncertainty_estimation.training.trainer import train_model
+
+
     # Auto-derive experiment name if not explicitly set
     if OmegaConf.is_missing(cfg.experiment, "name"):
         with open_dict(cfg):
