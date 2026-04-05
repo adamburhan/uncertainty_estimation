@@ -16,6 +16,7 @@ wheels/
 logs/
 outputs/
 wandb/
+checkpoints/
 
 *.png
 *.jpg
