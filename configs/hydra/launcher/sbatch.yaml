@@ -24,8 +24,8 @@ setup:
   - "module load cuda/12.1.1/cudnn"
   - "module load python/3.10"
   - "mkdir -p /tmp/sss"
-  - "rsync -avP /home/mila/a/adam.burhan/scratch/datasets/sss/generated_data/semistaticsim/test/semistaticsimtest.tar.gz /tmp/sss"
-  - "cd /tmp/sss && tar -xzf semistaticsimtest.tar.gz && rm semistaticsimtest.tar.gz"
+  - "rsync -avP /home/mila/a/adam.burhan/scratch/datasets/sss/generated_data/semistaticsim/test/semistaticsim.tar.gz /tmp/sss"
+  - "cd /tmp/sss && tar -xzf semistaticsim.tar.gz && rm semistaticsim.tar.gz"
   - "cd ${hydra.runtime.cwd}"
 
 
