@@ -4,7 +4,7 @@
 #   python scripts/train_stereo_cov.py dataset=sss experiment.name=002
 
 defaults:
-  - dataset: tartanair
+  - dataset: sss
   - _self_
 
 # Hydra output dir — one folder per named experiment.

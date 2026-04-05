@@ -13,7 +13,7 @@ Expected directory structure:
                 poses/
 
 Camera parameters (fixed across all SemiStaticSim scenes):
-    fx = fy = 300.0,  cx = 300.0,  cy = 300.0  (600x600 images)
+    fx = fy = 320.0,  cx = 320.0,  cy = 320.0  (640x640 images, 90 deg FoV)
 
 Stereo configs (pure translational offset, parallel stereo):
     horizontal_{5,10,20,50,100}cm  -> X-axis offset
@@ -44,8 +44,8 @@ from uncertainty_estimation.training.data.augmentations.random_crop import Rando
 # Fixed calibration 
 
 _K = torch.tensor([
-    [300.0,   0.0, 300.0],
-    [  0.0, 300.0, 300.0],
+    [320.0,   0.0, 320.0],
+    [  0.0, 320.0, 320.0],
     [  0.0,   0.0,   1.0],
 ], dtype=torch.float32)
 

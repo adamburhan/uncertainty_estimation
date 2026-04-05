@@ -10,3 +10,9 @@ wheels/
 # Virtual environments
 .venv
 .claude
+
+
+# logs
+logs/
+outputs/
+wandb/

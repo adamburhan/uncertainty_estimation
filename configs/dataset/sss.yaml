@@ -1,12 +1,12 @@
 # SemiStaticSim stereo dataset config.
-# Camera: 600x600, fx=fy=300, cx=cy=300
+# Camera: 640x640, 90deg FoV, fx=fy=320, cx=cy=320
 # Stereo configs: {horizontal,vertical}_{5,10,20,50,100}cm
 
 name: semistaticsim
-root: /home/mila/b/burhan.adam/scratch/datasets/sss/generated_data/semistaticsim
+root: /Volumes/T9/datasets/sss/generated_data/semistaticsim
 split_dir: test                   # subdirectory under root: "train" or "test"
-scenes_train: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20]
-scenes_val:   [23, 24, 25, 26, 28]
+scenes_train: [1]
+scenes_val:   [1]
 stereo_config: horizontal_20cm    # {horizontal,vertical}_{5,10,20,50,100}cm
 seed: 0
 run_id: 0
