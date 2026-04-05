@@ -61,7 +61,9 @@ def main(cfg: DictConfig) -> None:
     # Auto-derive experiment name if not explicitly set
     if OmegaConf.is_missing(cfg.experiment, "name"):
         with open_dict(cfg):
-            cfg.experiment.name = f"{cfg.dataset.name}_{cfg.dataset.get('stereo_config', 'default')}"
+            stereo_cfg = cfg.dataset.get('stereo_config', 'default')
+            cfg.experiment.name = f"{cfg.dataset.name}_{stereo_cfg}_seed{cfg.training.seed}"
+            cfg.experiment.group = f"{cfg.dataset.name}_{stereo_cfg}"
 
     print(OmegaConf.to_yaml(cfg))
     
@@ -123,6 +125,7 @@ def main(cfg: DictConfig) -> None:
     wandb.init(
         project=cfg.logging.wandb_project,
         name=cfg.experiment.name,
+        group=cfg.experiment.get("group", None),
         tags=tags,
         config=OmegaConf.to_container(cfg, resolve=True),
         mode="offline" if cfg.logging.wandb_offline else "online",
