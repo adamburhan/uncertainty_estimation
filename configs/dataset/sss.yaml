@@ -3,7 +3,7 @@
 # Stereo configs: {horizontal,vertical}_{5,10,20,50,100}cm
 
 name: semistaticsim
-root: /Volumes/T9/datasets/sss/generated_data/semistaticsim
+root: /tmp/sss
 split_dir: test                   # subdirectory under root: "train" or "test"
 scenes_train: [1]
 scenes_val:   [1]

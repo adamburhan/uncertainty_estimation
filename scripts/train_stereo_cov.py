@@ -18,10 +18,11 @@ from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 from torch.utils.data import DataLoader
 
 import hydra
@@ -68,17 +69,19 @@ def build_dataset(cfg: DictConfig, split: str):
 
 @hydra.main(version_base=None, config_path="../configs", config_name="base")
 def main(cfg: DictConfig) -> None:
+    # Auto-derive experiment name if not explicitly set
+    if OmegaConf.is_missing(cfg.experiment, "name"):
+        with open_dict(cfg):
+            cfg.experiment.name = f"{cfg.dataset.name}_{cfg.dataset.get('stereo_config', 'default')}"
+
     print(OmegaConf.to_yaml(cfg))
     seed_experiment(cfg.training.seed)
 
     device = torch.device(cfg.training.device)
 
-    checkpoint_dir = Path(cfg.logging.log_dir, cfg.experiment.name)
-    i=0
-    while checkpoint_dir.exists():
-        i+=1
-        checkpoint_dir = Path(cfg.logging.log_dir) / str(i)
-    
+    checkpoint_dir = Path("checkpoints")
+    checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    OmegaConf.save(cfg, "config.yaml")
 
     # Data 
     train_dataset = build_dataset(cfg, split="train")
@@ -133,12 +136,16 @@ def main(cfg: DictConfig) -> None:
         mode="offline" if cfg.logging.wandb_offline else "online",
     )
 
-    # Callbacks 
+    # Callbacks
     log_fn = lambda metrics: wandb.log(metrics)
 
-    # Lazy import to avoid pulling matplotlib into trainer
-    from scripts.viz import visualize_covariances
-    vis_fn = lambda model, batch: visualize_covariances(model, batch, matching_fn, device)
+    from uncertainty_estimation.visualization.covariance import visualize_covariances
+    def vis_fn(model, batch):
+        figs = visualize_covariances(model, batch, matching_fn, device)
+        result = {k: wandb.Image(v) for k, v in figs.items()}
+        for fig in figs.values():
+            plt.close(fig)
+        return result
 
     # Train 
     all_metrics = train_model(

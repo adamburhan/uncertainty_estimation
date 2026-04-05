@@ -1,0 +1,34 @@
+# @package hydra.launcher
+partition: long
+_target_: hydra_plugins.hydra_submitit_launcher.submitit_launcher.SlurmLauncher # hydra_plugins.packed_launcher.packedlauncher.SlurmLauncher
+cpus_per_task: 4
+mem_gb: 16
+tasks_per_node: 1
+stderr_to_stdout: False
+gres: gpu:1 #gpu:32gb:1 # gpu:rtx8000:1 # No MIG: gpu:32gb:1
+submitit_folder: ${hydra.sweep.dir}/submitit/%j
+timeout_min: 60 # 2 days: 2880 ; 12h : 720 ; 1 day: 1440
+nodes: 1
+name: ${hydra.job.name}
+array_parallelism: 10 # max num of tasks to run in parallel (via job array)
+# additional_parameters:
+#   exclude: "cn-a[001-011],cn-c[001-002,004-040]"
+
+python: ${hydra.runtime.cwd}/.venv/bin/python
+
+setup:
+  - "source ~/.bashrc"
+  - "export HYDRA_SWEEP_DIR=${hydra.sweep.dir}"
+  - "export BREAK=False"
+  - 'export TQDM_DISABLE=1'
+  - "ulimit -n 16384"
+  - "sleep $((RANDOM % 10))"
+  - "module load cuda/12.1.1/cudnn"
+  - "module load python/3.10"
+  - "mkdir -p /tmp/sss"
+  - "rsync -avP /home/mila/a/adam.burhan/scratch/datasets/sss/generated_data/semistaticsim/test/semistaticsimtest.tar.gz /tmp/sss"
+  - "cd /tmp/sss && tar -xzf semistaticsimtest.tar.gz && rm semistaticsimtest.tar.gz"
+  - "cd ${hydra.runtime.cwd}"
+
+
+
