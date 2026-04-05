@@ -10,15 +10,15 @@ def ORB(
     device: torch.device,
     max_keypoints: int = 2000,
     max_hamming_distance: int = 64,
-    max_epipolar_error: float = 2.0,
+    lowe_ratio: float = 0.75,
+    ransac_reproj_threshold: float = 1.0,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """ORB stereo matching for a batch of rectified stereo pairs.
+    """ORB matching for a batch of stereo pairs (any baseline direction).
 
     Filters:
       - Lowe's ratio test (descriptor quality)
       - Hamming distance <= max_hamming_distance (descriptor quality)
-      - |y_left - y_right| <= max_epipolar_error (rectified epipolar constraint)
-      - u_left > u_right (positive disparity)
+      - RANSAC fundamental matrix estimation (geometric consistency)
 
     Returns:
         left_kps:  (B, P, 2) left keypoint pixel coords, padded
@@ -54,32 +54,39 @@ def ORB(
             _empty()
             continue
 
-        # Lowe's ratio test + stereo geometry filters
+        # Lowe's ratio test + hamming threshold
         lkps_list = []
         rkps_list = []
         for pair in matches:
             if len(pair) < 2:
                 continue
             m, n = pair
-            if m.distance >= 0.75 * n.distance:
+            if m.distance >= lowe_ratio * n.distance:
                 continue
             if m.distance > max_hamming_distance:
                 continue
-            pt_l = kp1[m.queryIdx].pt
-            pt_r = kp2[m.trainIdx].pt
-            if abs(pt_l[1] - pt_r[1]) > max_epipolar_error:
-                continue
-            if pt_l[0] <= pt_r[0]:
-                continue
-            lkps_list.append(pt_l)
-            rkps_list.append(pt_r)
+            lkps_list.append(kp1[m.queryIdx].pt)
+            rkps_list.append(kp2[m.trainIdx].pt)
 
-        if not lkps_list:
+        if len(lkps_list) < 8:  # need >= 8 points for fundamental matrix
             _empty()
             continue
 
-        lkps = np.array(lkps_list, dtype=np.float32)  # (P, 2)
-        rkps = np.array(rkps_list, dtype=np.float32)  # (P, 2)
+        lkps = np.array(lkps_list, dtype=np.float32)
+        rkps = np.array(rkps_list, dtype=np.float32)
+
+        # RANSAC geometric verification via fundamental matrix
+        _, inlier_mask = cv.findFundamentalMat(
+            lkps, rkps, cv.FM_RANSAC, ransacReprojThreshold=ransac_reproj_threshold,
+        )
+
+        if inlier_mask is None or inlier_mask.sum() == 0:
+            _empty()
+            continue
+
+        inliers = inlier_mask.ravel().astype(bool)
+        lkps = lkps[inliers]
+        rkps = rkps[inliers]
 
         left_kps.append(torch.from_numpy(lkps))
         right_kps.append(torch.from_numpy(rkps))

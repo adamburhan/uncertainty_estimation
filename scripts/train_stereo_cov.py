@@ -67,9 +67,12 @@ def main(cfg: DictConfig) -> None:
     
     device = torch.device(cfg.training.device)
 
-    checkpoint_dir = Path("checkpoints")
+    from hydra.core.hydra_config import HydraConfig
+    hydra_cfg = HydraConfig.get()
+    output_dir = Path(hydra_cfg.runtime.output_dir)  # absolute path, works for both run and multirun
+    checkpoint_dir = output_dir / "checkpoints"
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
-    OmegaConf.save(cfg, "config.yaml")
+    OmegaConf.save(cfg, output_dir / "config.yaml")
 
     # Data 
     train_dataset = build_dataset(cfg, split="train")
@@ -101,7 +104,7 @@ def main(cfg: DictConfig) -> None:
     # Model, loss, optimizer 
     model = build_model(cfg.model).to(device)
     loss_fn = build_loss(cfg.loss)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.training.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.training.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.training.lr_gamma)
 
     # Matching
@@ -109,7 +112,8 @@ def main(cfg: DictConfig) -> None:
         images, device,
         max_keypoints=cfg.matching.max_keypoints,
         max_hamming_distance=cfg.matching.max_hamming,
-        max_epipolar_error=cfg.matching.max_epipolar_error,
+        lowe_ratio=cfg.matching.lowe_ratio,
+        ransac_reproj_threshold=cfg.matching.ransac_reproj_threshold,
     )
 
     # WandB 

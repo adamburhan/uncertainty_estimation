@@ -19,7 +19,7 @@ experiment:
 augmentation:
   rotation: false           # reserved; not yet implemented
   rotation_range: [0, 360]
-  random_crop: true
+  random_crop: false
   crop_size: [480, 640]
   noise: false
   noise_var: 0.0064
@@ -28,8 +28,8 @@ matching:
   algorithm: orb
   max_keypoints: 2000
   max_hamming: 64
-  max_epipolar_error: 3.0
-  sampson_threshold: 4.0    # reserved for non-rectified matching
+  lowe_ratio: 0.75
+  ransac_reproj_threshold: 3.0
 
 loss:
   name: bearing_nll         # "bearing_nll" | "pixel_nll"
@@ -42,14 +42,14 @@ model:
 
 training:
   train_batch_size: 8
-  eval_batch_size: 8
+  eval_batch_size: 32
   lr: 1e-4
-  lr_gamma: 0.99995
-  epochs: 50
+  lr_gamma: 1.0              # constant LR — no decay
+  epochs: 100
   grad_clip: 1.0
-  checkpoint_interval: 5
+  checkpoint_interval: 25
   validation_interval: 1
-  vis_interval: 5
+  vis_interval: 25
   device: cuda
   num_workers: 4
   seed: 42
