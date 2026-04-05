@@ -2,10 +2,10 @@
 # Camera: 640x640, fx=fy=320, cx=cy=320, baseline=0.025m (horizontal)
 
 name: tartanair
-root: /tmp/tartanair-v2
+root: /Volumes/T9/datasets/tartanair-v2
 environments: [ArchVizTinyHouseDay]
-sequences_train: [P000, P002, P003, P004, P005]
-sequences_val:   [P001, P006]
+sequences_train: [P000]
+sequences_val:   [P000]
 left_images:  image_lcam_front
 right_images: image_rcam_front
 depth_source: gt            # "gt" | "orb_disparity" | "sgbm"

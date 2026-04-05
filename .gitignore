@@ -16,3 +16,7 @@ wheels/
 logs/
 outputs/
 wandb/
+
+*.png
+*.jpg
+*.pdf

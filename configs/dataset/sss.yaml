@@ -7,7 +7,7 @@ root: /Volumes/T9/datasets/sss/generated_data/semistaticsim
 split_dir: test                   # subdirectory under root: "train" or "test"
 scenes_train: [1]
 scenes_val:   [1]
-stereo_config: horizontal_20cm    # {horizontal,vertical}_{5,10,20,50,100}cm
+stereo_config: horizontal_50cm    # {horizontal,vertical}_{5,10,20,50,100}cm
 seed: 0
 run_id: 0
 depth_source: gt
