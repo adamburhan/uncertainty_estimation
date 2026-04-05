@@ -20,7 +20,7 @@ augmentation:
   rotation: false           # reserved; not yet implemented
   rotation_range: [0, 360]
   random_crop: false
-  crop_size: [480, 640]
+  crop_size: [640, 640]
   noise: false
   noise_var: 0.0064
 
