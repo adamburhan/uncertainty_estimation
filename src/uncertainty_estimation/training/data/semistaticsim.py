@@ -1,7 +1,7 @@
 """SemiStaticSim dataset for stereo covariance prediction.
 
 Expected directory structure:
-    <root>/<split>/<scene_id>/<seed>/privileged/run_<run_id>/
+    <root>/<scene_id>/<seed>/privileged/run_<run_id>/
         images/
             rgb_first_view/   <- left RGB  (*.jpg)
             depth/            <- left depth (*.png, uint16 millimetres)
@@ -134,7 +134,6 @@ class SemiStaticSimStereoDataset(Dataset):
         )
 
         root = Path(dataset_cfg.root)
-        split_dir = dataset_cfg.split_dir
         seed = dataset_cfg.seed
         run_id = dataset_cfg.run_id
         stereo_config = dataset_cfg.stereo_config
@@ -142,7 +141,7 @@ class SemiStaticSimStereoDataset(Dataset):
         # Build index: list of (left_rgb, right_rgb, depth_left, depth_right)
         self.frames: List[Tuple[Path, Path, Path, Path]] = []
         for scene_id in scenes:
-            run_dir = root / split_dir / str(scene_id) / str(seed) / "privileged" / f"run_{run_id}"
+            run_dir = root / str(scene_id) / str(seed) / "privileged" / f"run_{run_id}"
             if not run_dir.is_dir():
                 raise FileNotFoundError(f"Run directory not found: {run_dir}")
 
