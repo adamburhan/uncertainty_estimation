@@ -16,37 +16,23 @@ Override any field:
 import random
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-
-import numpy as np
-import torch
 from omegaconf import DictConfig, OmegaConf, open_dict
-from torch.utils.data import DataLoader
 
 import hydra
 
+# All heavy imports (torch, matplotlib, wandb, uncertainty_estimation) are deferred
+# to inside main() so that cloudpickle / submitit can serialize the task function
+# without hitting unpicklable objects like torch.backends.cudnn.CudnnModule.
 
-# Utilities
-
-# def seed_experiment(seed: int):
-
-
-
-class DummyScheduler:
-    """LR scheduler that does nothing. Drop-in for the scheduler interface."""
-    def __init__(self, optimizer):
-        self.optimizer = optimizer
-    def step(self): pass
-    def state_dict(self): return {}
-    def load_state_dict(self, state_dict): pass
-
-
-# Main
 
 @hydra.main(version_base=None, config_path="../configs", config_name="base")
 def main(cfg: DictConfig) -> None:
+    import matplotlib
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import numpy as np
+    import torch
+    from torch.utils.data import DataLoader
     import wandb
 
     from uncertainty_estimation.matching.orb import ORB
@@ -56,7 +42,7 @@ def main(cfg: DictConfig) -> None:
     from uncertainty_estimation.training.losses import build_loss
     from uncertainty_estimation.training.trainer import train_model
 
-    """Seed all RNGs for reproducibility."""
+    # Seed all RNGs for reproducibility
     seed = cfg.training.seed
     random.seed(seed)
     np.random.seed(seed)
