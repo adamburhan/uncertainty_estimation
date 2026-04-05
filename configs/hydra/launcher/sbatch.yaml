@@ -14,8 +14,6 @@ array_parallelism: 10 # max num of tasks to run in parallel (via job array)
 # additional_parameters:
 #   exclude: "cn-a[001-011],cn-c[001-002,004-040]"
 
-python: ${hydra.runtime.cwd}/.venv/bin/python
-
 setup:
   - "source ~/.bashrc"
   - "export HYDRA_SWEEP_DIR=${hydra.sweep.dir}"
