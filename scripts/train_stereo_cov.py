@@ -29,14 +29,8 @@ import hydra
 
 # Utilities
 
-def seed_experiment(seed: int):
-    """Seed all RNGs for reproducibility."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+# def seed_experiment(seed: int):
+
 
 
 class DummyScheduler:
@@ -46,16 +40,6 @@ class DummyScheduler:
     def step(self): pass
     def state_dict(self): return {}
     def load_state_dict(self, state_dict): pass
-
-
-# Dataset factory
-
-def build_dataset(cfg: DictConfig, split: str):
-    if cfg.dataset.name == "tartanair":
-        return TartanAirLiveDataset(cfg.dataset, cfg.augmentation, split)
-    if cfg.dataset.name == "semistaticsim":
-        return SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, split)
-    raise ValueError(f"Unknown dataset '{cfg.dataset.name}'. Available: tartanair, semistaticsim")
 
 
 # Main
@@ -72,6 +56,21 @@ def main(cfg: DictConfig) -> None:
     from uncertainty_estimation.training.losses import build_loss
     from uncertainty_estimation.training.trainer import train_model
 
+    """Seed all RNGs for reproducibility."""
+    seed = cfg.training.seed
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+    def build_dataset(cfg: DictConfig, split: str):
+        if cfg.dataset.name == "tartanair":
+            return TartanAirLiveDataset(cfg.dataset, cfg.augmentation, split)
+        if cfg.dataset.name == "semistaticsim":
+            return SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, split)
+        raise ValueError(f"Unknown dataset '{cfg.dataset.name}'. Available: tartanair, semistaticsim")
 
     # Auto-derive experiment name if not explicitly set
     if OmegaConf.is_missing(cfg.experiment, "name"):
@@ -79,8 +78,7 @@ def main(cfg: DictConfig) -> None:
             cfg.experiment.name = f"{cfg.dataset.name}_{cfg.dataset.get('stereo_config', 'default')}"
 
     print(OmegaConf.to_yaml(cfg))
-    seed_experiment(cfg.training.seed)
-
+    
     device = torch.device(cfg.training.device)
 
     checkpoint_dir = Path("checkpoints")
