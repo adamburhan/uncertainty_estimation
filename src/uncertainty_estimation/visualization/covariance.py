@@ -42,7 +42,8 @@ def visualize_covariances(
         fig_dense.tight_layout()
 
         # Get matches for first sample only
-        left_kps, _, masks = matching_fn(images[:1])
+        K = torch.linalg.inv(batch["K_inv"].to(device))
+        left_kps, _, masks = matching_fn(images[:1], K[:1])
         left_kps = left_kps.to(device)
         masks = masks[0].bool()
         kps = left_kps[0][masks].cpu().numpy()

@@ -54,7 +54,8 @@ def visualize_covariances(
         fig_dense.tight_layout()
 
         # Get matches for first sample only
-        left_kps, _, masks = matching_fn(images[:1])
+        K = torch.linalg.inv(batch["K_inv"].to(device))
+        left_kps, _, masks = matching_fn(images[:1], K[:1])
         left_kps = left_kps.to(device)
         masks = masks[0].bool()
         kps = left_kps[0][masks].cpu().numpy()
@@ -146,7 +147,8 @@ def visualize_covariances_local(
         ax.set_title("Predicted covariance (HSV: hue=angle, sat=anisotropy, val=scale)")
         fig_dense.tight_layout()
 
-        left_kps, _, masks = matching_fn(images[:1])
+        K = torch.linalg.inv(batch["K_inv"].to(device))
+        left_kps, _, masks = matching_fn(images[:1], K[:1])
         left_kps = left_kps.to(device)
         masks = masks[0].bool()
         kps = left_kps[0][masks].cpu().numpy()
@@ -346,8 +348,8 @@ if __name__ == "__main__":
         else:
             print(f"Loaded checkpoint: {cfg.model.checkpoint}")
 
-        matching_fn = lambda images: ORB(
-            images, device, max_keypoints=cfg.matching.max_keypoints,
+        matching_fn = lambda images, K: ORB(
+            images, device, K, max_keypoints=cfg.matching.max_keypoints,
         )
 
         batch = next(iter(val_loader))

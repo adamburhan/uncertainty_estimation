@@ -110,8 +110,8 @@ def main(cfg: DictConfig) -> None:
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.training.lr_gamma)
 
     # Matching
-    matching_fn = lambda images: ORB(
-        images, device,
+    matching_fn = lambda images, K: ORB(
+        images, device, K,
         max_keypoints=cfg.matching.max_keypoints,
         max_hamming_distance=cfg.matching.max_hamming,
         lowe_ratio=cfg.matching.lowe_ratio,

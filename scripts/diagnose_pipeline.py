@@ -63,11 +63,12 @@ def main(cfg: DictConfig) -> None:
     model = build_model(cfg.model).to(device)
 
     # Matching
-    matching_fn = lambda images: ORB(
-        images, device,
+    matching_fn = lambda images, K: ORB(
+        images, device, K,
         max_keypoints=cfg.matching.max_keypoints,
         max_hamming_distance=cfg.matching.max_hamming,
-        max_epipolar_error=cfg.matching.max_epipolar_error,
+        lowe_ratio=cfg.matching.lowe_ratio,
+        ransac_reproj_threshold=cfg.matching.ransac_reproj_threshold,
     )
 
     # Grab one batch
@@ -97,7 +98,7 @@ def main(cfg: DictConfig) -> None:
 
     # 1. Matching 
     print("--- 1. ORB Matching ---")
-    left_kps, right_kps, masks = matching_fn(images)
+    left_kps, right_kps, masks = matching_fn(images, K)
     left_kps  = left_kps.to(device)
     right_kps = right_kps.to(device)
     masks     = masks.to(device)
@@ -110,11 +111,8 @@ def main(cfg: DictConfig) -> None:
         valid = masks[b].bool()
         lk = left_kps[b, valid]
         rk = right_kps[b, valid]
-        epipolar_err = (lk[:, 1] - rk[:, 1]).abs()
-        disparity = lk[:, 0] - rk[:, 0]
-        print(f"  Sample {b}: {int(n_valid)} matches | "
-              f"epipolar err: mean={epipolar_err.mean():.2f} max={epipolar_err.max():.2f}px | "
-              f"disparity: min={disparity.min():.1f} max={disparity.max():.1f}px")
+
+        print(f"  Sample {b}: {int(n_valid)} matches ")
 
     # 2. Depth at keypoints
     print("\n--- 2. Depth Lookup at Keypoints ---")

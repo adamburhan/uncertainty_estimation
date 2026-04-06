@@ -75,7 +75,7 @@ def _parse_stereo_config(config_name: str) -> Tuple[torch.Tensor, float]:
     if direction == "horizontal":
         T_lr[0, 3] = -baseline   # X offset (negative: transforms points from left to right frame)
     elif direction == "vertical":
-        T_lr[1, 3] = -baseline   # Y offset (negative: transforms points from left to right frame)
+        T_lr[1, 3] = baseline   # Y offset (negative: transforms points from left to right frame)
     else:
         raise ValueError(f"Unknown direction '{direction}'. Expected 'horizontal' or 'vertical'.")
 

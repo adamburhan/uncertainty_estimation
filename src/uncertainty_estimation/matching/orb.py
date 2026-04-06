@@ -8,6 +8,7 @@ import cv2 as cv
 def ORB(
     images: torch.Tensor,  # B, 2, C, H, W  — dim 1: 0=left, 1=right
     device: torch.device,
+    K: torch.Tensor,
     max_keypoints: int = 2000,
     max_hamming_distance: int = 64,
     lowe_ratio: float = 0.75,
@@ -75,9 +76,10 @@ def ORB(
         lkps = np.array(lkps_list, dtype=np.float32)
         rkps = np.array(rkps_list, dtype=np.float32)
 
-        # RANSAC geometric verification via fundamental matrix
-        _, inlier_mask = cv.findFundamentalMat(
-            lkps, rkps, cv.FM_RANSAC, ransacReprojThreshold=ransac_reproj_threshold,
+        # RANSAC geometric verification via essential matrix
+        K_np = np.ascontiguousarray(K[i].detach().cpu().numpy(), dtype=np.float64)
+        _, inlier_mask = cv.findEssentialMat(
+            lkps, rkps, K_np, cv.RANSAC, threshold=ransac_reproj_threshold,
         )
 
         if inlier_mask is None or inlier_mask.sum() == 0:

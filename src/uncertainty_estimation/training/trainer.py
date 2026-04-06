@@ -80,13 +80,14 @@ def _forward_step(
     baseline = batch["baseline"].to(device)   # B,
 
     # correspondences and masks for valid keypoints (after matching and outlier rejection)
-    left_kps, right_kps, masks = matching_fn(images)
+    K = torch.linalg.inv(K_inv)
+    focal = K[:, 0, 0]
+
+    left_kps, right_kps, masks = matching_fn(images, K)
     left_kps = left_kps.to(device)
     right_kps = right_kps.to(device)
     masks = masks.to(device)
 
-    K = torch.linalg.inv(K_inv)
-    focal = K[:, 0, 0]
 
     depth_left, depth_right = _get_depth(
         depth_source, batch, left_kps, right_kps, focal, baseline, device, max_depth

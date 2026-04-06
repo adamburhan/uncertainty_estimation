@@ -61,8 +61,8 @@ def main(cfg: DictConfig) -> None:
     )
 
     device = torch.device("cpu")  # ORB is CPU-only; no GPU needed
-    matching_fn = lambda images: ORB(
-        images, device,
+    matching_fn = lambda images, K: ORB(
+        images, device, K,
         max_keypoints=cfg.matching.max_keypoints,
         max_hamming_distance=cfg.matching.max_hamming,
         lowe_ratio=cfg.matching.lowe_ratio,
@@ -75,9 +75,10 @@ def main(cfg: DictConfig) -> None:
     print(f"Iterating {len(loader)} batches of size {cfg.training.train_batch_size}...")
     for batch_idx, batch in enumerate(loader):
         images = batch["images"]  # (B, 2, 1, H, W) on CPU
-
+        K = batch["K_inv"]  
+        K = torch.linalg.inv(K)  # (B, 3, 3)
         try:
-            left_kps, right_kps, masks = matching_fn(images)
+            left_kps, right_kps, masks = matching_fn(images, K)
         except cv.error as e:
             print(f"\n[CRASH] batch {batch_idx}: {e}")
             # Re-run ORB one item at a time to find which sample blew up,
