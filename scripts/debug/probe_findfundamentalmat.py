@@ -93,6 +93,22 @@ def main():
         try_call(f"N={k}",
                  lambda lk=lk[:k], rk=rk[:k]:
                  cv.findFundamentalMat(lk, rk, cv.FM_RANSAC, ransacReprojThreshold=3.0))
+    print()
+
+    # Essential-matrix variants (fixed K for SemiStaticSim: fx=fy=320, cx=cy=320)
+    K = np.array([[320.0, 0.0, 320.0],
+                  [0.0, 320.0, 320.0],
+                  [0.0, 0.0, 1.0]], dtype=np.float64)
+    print("findEssentialMat variants (K = SemiStaticSim intrinsics):")
+    e_methods = [
+        ("RANSAC       thr=3.0", lambda: cv.findEssentialMat(lk, rk, K, method=cv.RANSAC,       prob=0.999, threshold=3.0)),
+        ("RANSAC       thr=1.0", lambda: cv.findEssentialMat(lk, rk, K, method=cv.RANSAC,       prob=0.999, threshold=1.0)),
+        ("LMEDS",                lambda: cv.findEssentialMat(lk, rk, K, method=cv.LMEDS,        prob=0.999)),
+        ("USAC_DEFAULT thr=3.0", lambda: cv.findEssentialMat(lk, rk, K, method=cv.USAC_DEFAULT, prob=0.999, threshold=3.0)),
+        ("USAC_MAGSAC  thr=3.0", lambda: cv.findEssentialMat(lk, rk, K, method=cv.USAC_MAGSAC,  prob=0.999, threshold=3.0)),
+    ]
+    for label, fn in e_methods:
+        try_call(label, fn)
 
 
 if __name__ == "__main__":
