@@ -147,10 +147,16 @@ def _forward_step(
     K = torch.linalg.inv(K_inv)
     focal = K[:, 0, 0]
 
-    left_kps, right_kps, masks = matching_fn(images, K)
-    left_kps = left_kps.to(device)
-    right_kps = right_kps.to(device)
-    masks = masks.to(device)
+    if "left_kps" in batch:
+        # Matches were precomputed in the dataloader workers (CPU-parallel ORB).
+        left_kps = batch["left_kps"].to(device)
+        right_kps = batch["right_kps"].to(device)
+        masks = batch["match_mask"].to(device)
+    else:
+        left_kps, right_kps, masks = matching_fn(images, K)
+        left_kps = left_kps.to(device)
+        right_kps = right_kps.to(device)
+        masks = masks.to(device)
 
 
     depth_left, depth_right, depth_valid = _get_depth(

@@ -14,7 +14,6 @@ from uncertainty_estimation.models.transforms import covs_to_image
 def visualize_covariances(
     model,
     batch,
-    matching_fn,
     device,
     scale_limit: float = 50.0,
     max_kps: int = 25,
@@ -57,11 +56,9 @@ def visualize_covariances(
         ax.set_title("Predicted covariance (HSV: hue=angle, sat=anisotropy, val=scale)")
         fig_dense.tight_layout()
 
-        # Get first-sample matches only
-        K = torch.linalg.inv(batch["K_inv"].to(device))
-        left_kps, _, masks = matching_fn(images[:1], K[:1])
-        left_kps = left_kps.to(device)
-
+        # Use precomputed matches from the batch (ORB now runs in dataloader workers).
+        left_kps = batch["left_kps"].to(device)
+        masks = batch["match_mask"].to(device)
         valid = masks[0].bool()
         kps = left_kps[0][valid].detach().cpu().numpy()  # (P, 2)
 
