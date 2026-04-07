@@ -58,12 +58,20 @@ def main(cfg: DictConfig) -> None:
             return SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, split)
         raise ValueError(f"Unknown dataset '{cfg.dataset.name}'. Available: tartanair, semistaticsim")
 
-    # Auto-derive experiment name if not explicitly set
-    if OmegaConf.is_missing(cfg.experiment, "name"):
-        with open_dict(cfg):
-            stereo_cfg = cfg.dataset.get('stereo_config', 'default')
-            cfg.experiment.name = f"{cfg.dataset.name}_{stereo_cfg}_seed{cfg.training.seed}"
-            cfg.experiment.group = f"{cfg.dataset.name}_{stereo_cfg}"
+    # Auto-derive experiment name and group from the experiment axes.
+    # Group aggregates runs that should be averaged together (same axes, different seeds).
+    # Name additionally pins the seed so each run is uniquely identifiable.
+    stereo_cfg = cfg.dataset.get("stereo_config", "default")
+    corr_mode = cfg.correspondence.mode
+    loss_name = cfg.loss.name
+    seed = cfg.training.seed
+    cell_id = f"{cfg.dataset.name}_{stereo_cfg}_{loss_name}_{corr_mode}"
+
+    with open_dict(cfg):
+        if cfg.experiment.group is None:
+            cfg.experiment.group = cell_id
+        if cfg.experiment.name is None:
+            cfg.experiment.name = f"{cfg.experiment.label}__{cell_id}__seed{seed}"
 
     print(OmegaConf.to_yaml(cfg))
     
@@ -118,14 +126,28 @@ def main(cfg: DictConfig) -> None:
         ransac_reproj_threshold=cfg.matching.ransac_reproj_threshold,
     )
 
-    # WandB 
+    # WandB — every experiment axis becomes a tag for free-form slicing.
+    # Parse "horizontal_10cm" / "vertical_50cm" into direction + magnitude tags.
+    baseline_dir = "unknown"
+    baseline_mag = "unknown"
+    if "_" in stereo_cfg:
+        baseline_dir, baseline_mag = stereo_cfg.split("_", 1)
+
     tags = list(cfg.logging.wandb_tags) + [
-        cfg.loss.name, cfg.dataset.depth_source, cfg.dataset.name,
+        f"exp:{cfg.experiment.label}",
+        f"dataset:{cfg.dataset.name}",
+        f"stereo:{stereo_cfg}",
+        f"baseline_dir:{baseline_dir}",
+        f"baseline_mag:{baseline_mag}",
+        f"loss:{loss_name}",
+        f"corr:{corr_mode}",
+        f"seed:{seed}",
+        f"depth:{cfg.dataset.depth_source}",
     ]
     wandb.init(
         project=cfg.logging.wandb_project,
         name=cfg.experiment.name,
-        group=cfg.experiment.get("group", None),
+        group=cfg.experiment.group,
         tags=tags,
         config=OmegaConf.to_container(cfg, resolve=True),
         mode="offline" if cfg.logging.wandb_offline else "online",

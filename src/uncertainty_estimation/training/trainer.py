@@ -9,6 +9,7 @@ from collections import defaultdict
 from typing import Callable, Dict, Optional, Tuple
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -43,18 +44,79 @@ def _get_depth(
     baseline: Tensor,
     device: torch.device,
     max_depth: float,
-) -> Tuple[Tensor, Tensor]:
-    """Compute per-keypoint depth according to the configured depth source."""
+) -> Tuple[Tensor, Tensor, Tensor]:
+    """Compute per-keypoint depth and a per-keypoint depth-validity mask.
+
+    The validity mask flags keypoints whose *raw* depth (before clamping) was
+    inside (0.1, max_depth) in BOTH views. Without this, missing/out-of-range
+    GT depths get silently clamped to 0.1 or max_depth, producing garbage
+    reprojections that the matcher mask doesn't catch.
+    """
     if depth_source == "gt":
-        depth_left = _lookup_depth(batch["depth_left"].to(device), left_kps)
-        depth_right = _lookup_depth(batch["depth_right"].to(device), right_kps)
-        return depth_left.clamp(0.1, max_depth), depth_right.clamp(0.1, max_depth)
+        raw_left = _lookup_depth(batch["depth_left"].to(device), left_kps)
+        raw_right = _lookup_depth(batch["depth_right"].to(device), right_kps)
+        valid = (
+            (raw_left > 0.1) & (raw_left < max_depth)
+            & (raw_right > 0.1) & (raw_right < max_depth)
+        )
+        return raw_left.clamp(0.1, max_depth), raw_right.clamp(0.1, max_depth), valid
     raise ValueError(f"Unknown depth_source '{depth_source}'. Available: gt, orb_disparity")
 
 
 def _in_bounds(kps: Tensor, H: int, W: int) -> Tensor:
     """Check which keypoints fall within image bounds. Returns (B, P) bool."""
     return (kps[..., 0] >= 0) & (kps[..., 0] < W) & (kps[..., 1] >= 0) & (kps[..., 1] < H)
+
+
+def _project_perturbed_3d(
+    kp_src: Tensor,
+    depth_src: Tensor,
+    K: Tensor,
+    K_inv: Tensor,
+    T_src_dst: Tensor,
+    sigma_3d: float,
+    min_z_dst: float = 0.1,
+) -> Tuple[Tensor, Tensor]:
+    """Unproject src kps to 3D, add isotropic Gaussian noise in 3D, project to dst camera.
+
+    Used by the synthetic_3d correspondence mode: the 3D-isotropic noise gets
+    pushed through the projection Jacobian, producing pixel-space residuals whose
+    anisotropy is determined by the depth + camera geometry.
+
+    Returns a per-keypoint validity mask flagging points whose perturbed 3D
+    location landed in front of the destination camera (z_dst > min_z_dst).
+    Without this guard, large sigmas push points behind the camera, the
+    projection divides by ~0, and pixel coords blow up to ±inf / NaN — feeding
+    NaN into the loss.
+
+    Args:
+        kp_src:    (B, P, 2) source-image keypoints (pixels, x=col, y=row)
+        depth_src: (B, P) depth at those keypoints (metres)
+        K:         (B, 3, 3) camera intrinsics
+        K_inv:     (B, 3, 3) inverse intrinsics
+        T_src_dst: (B, 4, 4) source-to-destination camera transform
+        sigma_3d:  std of isotropic 3D Gaussian noise (metres)
+        min_z_dst: minimum allowed depth in dst frame; points below are masked.
+
+    Returns:
+        kp_dst: (B, P, 2) noisy projected keypoints in the destination image.
+        valid:  (B, P) bool — True iff perturbed point is in front of dst camera.
+    """
+    homo = F.pad(kp_src, (0, 1), value=1.0)                       # (B, P, 3)
+    rays = torch.einsum("bij,bpj->bpi", K_inv, homo)              # (B, P, 3)
+    pts_src = depth_src.unsqueeze(-1) * rays                      # (B, P, 3) in src frame
+    pts_src = pts_src + sigma_3d * torch.randn_like(pts_src)      # perturb in 3D
+    pts_src_h = F.pad(pts_src, (0, 1), value=1.0)                 # (B, P, 4)
+    pts_dst = torch.einsum("bij,bpj->bpi", T_src_dst, pts_src_h)  # (B, P, 4)
+    z_dst = pts_dst[..., 2]                                       # (B, P)
+    valid = z_dst > min_z_dst
+    # Clamp z for the division so the kp_dst tensor itself stays finite even
+    # for invalid points (which will be masked out downstream). This avoids
+    # NaN/inf propagating into autograd graphs from masked entries.
+    z_safe = z_dst.clamp(min=min_z_dst).unsqueeze(-1)
+    px_xy = torch.einsum("bij,bpj->bpi", K, pts_dst[..., :3])[..., :2]
+    kp_dst = px_xy / z_safe
+    return kp_dst, valid
 
 
 
@@ -91,9 +153,10 @@ def _forward_step(
     masks = masks.to(device)
 
 
-    depth_left, depth_right = _get_depth(
+    depth_left, depth_right, depth_valid = _get_depth(
         depth_source, batch, left_kps, right_kps, focal, baseline, device, max_depth
     )
+    masks = masks * depth_valid
 
     cov_preds = model(images)  # B*2, H, W, 2, 2
 
@@ -102,16 +165,36 @@ def _forward_step(
     left_kps_reproj = reproject(right_kps, depth_right, K, T_rl)
 
     if correspondence_mode == "synthetic":
-        # Replace the matcher's observations with the clean GT projection plus
-        # known isotropic noise. The residual seen by the loss is then exactly
-        # the injected noise — matcher contribution is removed.
+        # 2D-isotropic pixel noise: residual seen by the loss = injected noise.
+        # Matcher contribution is removed — falsification test for the matcher hypothesis.
+        # Drop the matcher's confidence mask (no longer meaningful) but KEEP
+        # depth_valid since reproject still uses GT depth.
         if correspondence_sigma is None:
             raise ValueError("correspondence_sigma must be set when correspondence_mode='synthetic'")
         right_kps = right_kps_reproj + torch.randn_like(right_kps_reproj) * correspondence_sigma
         left_kps  = left_kps_reproj  + torch.randn_like(left_kps_reproj)  * correspondence_sigma
-        masks = torch.ones_like(masks)
+        masks = depth_valid
+    elif correspondence_mode == "synthetic_3d":
+        # 3D-isotropic noise pushed through the projection Jacobian: residual is
+        # geometry-shaped pixel noise. Positive control — should produce
+        # baseline/depth-dependent ellipses, demonstrating model capacity.
+        if correspondence_sigma is None:
+            raise ValueError("correspondence_sigma must be set when correspondence_mode='synthetic_3d'")
+        right_kps_orig = right_kps  # save before overwriting
+        right_kps, valid_lr = _project_perturbed_3d(
+            left_kps,       depth_left,  K, K_inv, T_lr, correspondence_sigma
+        )
+        left_kps,  valid_rl = _project_perturbed_3d(
+            right_kps_orig, depth_right, K, K_inv, T_rl, correspondence_sigma
+        )
+        # Mask out points where the perturbation pushed the 3D point behind
+        # the dst camera (either direction) AND require valid GT depth.
+        masks = valid_lr & valid_rl & depth_valid
     elif correspondence_mode != "real":
-        raise ValueError(f"Unknown correspondence_mode '{correspondence_mode}'. Available: real, synthetic")
+        raise ValueError(
+            f"Unknown correspondence_mode '{correspondence_mode}'. "
+            f"Available: real, synthetic, synthetic_3d"
+        )
 
     # Sample covariance at the observation locations (matcher in real mode,
     # synthetic-noised projection in synthetic mode). Must come AFTER the

@@ -13,7 +13,9 @@ hydra:
     dir: outputs/${experiment.name}
 
 experiment:
-  name: ???         # REQUIRED — set via CLI: experiment.name=001_bearing_gt
+  name: null         # auto-derived from axis values if left as ??? (see train_stereo_cov.py)
+  group: null        # auto-derived; aggregates seeds of the same (stereo, loss, corr) cell
+  label: unlabeled  # which experiment this run belongs to: A_stereo | B_falsif | C_loss | D_3dctrl
   hypothesis: ""    # free-text note logged with config
 
 augmentation:
@@ -32,8 +34,8 @@ matching:
   ransac_reproj_threshold: 3.0
 
 correspondence:
-  mode: real # "real" | "synthetic" — how to generate training correspondences
-  sigma: 2.0 # for synthetic mode
+  mode: real    # "real" | "synthetic" (2D-iso pixel noise) | "synthetic_3d" (3D-iso noise)
+  sigma: 2.0    # synthetic: pixels.  synthetic_3d: metres.
 
 loss:
   name: bearing_nll         # "bearing_nll" | "pixel_nll"

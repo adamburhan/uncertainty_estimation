@@ -20,7 +20,7 @@ def visualize_covariances(
     max_kps: int = 25,
     random_subset: bool = True,
     confidence: float = 0.95,
-    display_scale: float = 1.0,
+    display_scale: float = 10.0,
     min_eigval: float = 1e-6,
     point_size: float = 14.0,
     ellipse_linewidth: float = 1.2,
