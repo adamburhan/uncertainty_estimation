@@ -31,6 +31,10 @@ matching:
   lowe_ratio: 0.75
   ransac_reproj_threshold: 3.0
 
+correspondence:
+  mode: real # "real" | "synthetic" — how to generate training correspondences
+  sigma: 2.0 # for synthetic mode
+
 loss:
   name: bearing_nll         # "bearing_nll" | "pixel_nll"
 

@@ -65,6 +65,8 @@ def _forward_step(
     batch: dict,
     loss_fn: Callable,
     matching_fn: Callable,
+    correspondence_mode: str,
+    correspondence_sigma: Optional[float],
     device: torch.device,
     depth_source: str,
     max_depth: float,
@@ -94,11 +96,27 @@ def _forward_step(
     )
 
     cov_preds = model(images)  # B*2, H, W, 2, 2
-    left_covs, right_covs = extract_covs(cov_preds, left_kps, right_kps)
 
-    # Reproject both directions
+    # Reproject both directions (clean GT-based projection when depth_source="gt")
     right_kps_reproj = reproject(left_kps, depth_left, K, T_lr)
     left_kps_reproj = reproject(right_kps, depth_right, K, T_rl)
+
+    if correspondence_mode == "synthetic":
+        # Replace the matcher's observations with the clean GT projection plus
+        # known isotropic noise. The residual seen by the loss is then exactly
+        # the injected noise — matcher contribution is removed.
+        if correspondence_sigma is None:
+            raise ValueError("correspondence_sigma must be set when correspondence_mode='synthetic'")
+        right_kps = right_kps_reproj + torch.randn_like(right_kps_reproj) * correspondence_sigma
+        left_kps  = left_kps_reproj  + torch.randn_like(left_kps_reproj)  * correspondence_sigma
+        masks = torch.ones_like(masks)
+    elif correspondence_mode != "real":
+        raise ValueError(f"Unknown correspondence_mode '{correspondence_mode}'. Available: real, synthetic")
+
+    # Sample covariance at the observation locations (matcher in real mode,
+    # synthetic-noised projection in synthetic mode). Must come AFTER the
+    # synthetic override so cov-sample location matches the loss residual.
+    left_covs, right_covs = extract_covs(cov_preds, left_kps, right_kps)
 
     # Mask out reprojected points that land outside the image
     H, W = images.shape[-2], images.shape[-1]
@@ -139,6 +157,8 @@ def train_step(
     optimizer: torch.optim.Optimizer,
     loss_fn: Callable,
     matching_fn: Callable,
+    correspondence_mode: str,
+    correspondence_sigma: Optional[float],
     device: torch.device,
     depth_source: str = "gt",
     max_depth: float = 200.0,
@@ -148,7 +168,7 @@ def train_step(
     model.train()
     optimizer.zero_grad()
 
-    result = _forward_step(model, batch, loss_fn, matching_fn, device, depth_source, max_depth)
+    result = _forward_step(model, batch, loss_fn, matching_fn, correspondence_mode, correspondence_sigma, device, depth_source, max_depth)
 
     result["loss"].backward()
     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
@@ -163,13 +183,15 @@ def eval_step(
     batch: dict,
     loss_fn: Callable,
     matching_fn: Callable,
+    correspondence_mode: str,
+    correspondence_sigma: Optional[float],
     device: torch.device,
     depth_source: str = "gt",
     max_depth: float = 200.0,
 ) -> Dict[str, float]:
     """Single evaluation step (no gradients)."""
     model.eval()
-    result = _forward_step(model, batch, loss_fn, matching_fn, device, depth_source, max_depth)
+    result = _forward_step(model, batch, loss_fn, matching_fn, correspondence_mode, correspondence_sigma, device, depth_source, max_depth)
     return {"loss": result["loss"].item(), "n_valid_kps": result["n_valid_kps"]}
 
 
@@ -181,6 +203,8 @@ def eval_model(
     loader: DataLoader,
     loss_fn: Callable,
     matching_fn: Callable,
+    correspondence_mode: str,
+    correspondence_sigma: Optional[float],
     device: torch.device,
     depth_source: str = "orb_disparity",
     max_depth: float = 200.0,
@@ -192,7 +216,7 @@ def eval_model(
     n_batches = 0
 
     for batch in loader:
-        result = eval_step(model, batch, loss_fn, matching_fn, device, depth_source, max_depth)
+        result = eval_step(model, batch, loss_fn, matching_fn, correspondence_mode, correspondence_sigma, device, depth_source, max_depth)
         total_loss += result["loss"]
         total_kps += result["n_valid_kps"]
         n_batches += 1
@@ -218,6 +242,8 @@ def train_model(
     loss_fn: Callable,
     matching_fn: Callable,
     device: torch.device,
+    correspondence_mode: str,
+    correspondence_sigma: Optional[float],
     # training hyperparams (primitives only)
     depth_source: str,
     max_depth: float,
@@ -273,7 +299,8 @@ def train_model(
         pbar = tqdm(train_loader, desc=f"Epoch {epoch}/{num_epochs}", disable=not verbose)
         for batch in pbar:
             result = train_step(
-                model, batch, optimizer, loss_fn, matching_fn, device,
+                model, batch, optimizer, loss_fn, matching_fn,
+                correspondence_mode, correspondence_sigma, device,
                 depth_source=depth_source, max_depth=max_depth, grad_clip=grad_clip,
             )
             epoch_loss += result["loss"]
@@ -295,11 +322,13 @@ def train_model(
         # Full-pass train eval (deterministic, no grad) 
         if epoch % eval_period == 0:
             train_metrics = eval_model(
-                model, train_loader_for_eval, loss_fn, matching_fn, device,
+                model, train_loader_for_eval, loss_fn, matching_fn,
+                correspondence_mode, correspondence_sigma, device,
                 depth_source=depth_source, max_depth=max_depth,
             )
             val_metrics = eval_model(
-                model, val_loader, loss_fn, matching_fn, device,
+                model, val_loader, loss_fn, matching_fn,
+                correspondence_mode, correspondence_sigma, device,
                 depth_source=depth_source, max_depth=max_depth,
             )
 
