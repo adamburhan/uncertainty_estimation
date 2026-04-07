@@ -25,7 +25,7 @@ cd "$REPO_DIR"
 ALL_STEREO="horizontal_5cm,horizontal_10cm,horizontal_20cm,horizontal_50cm,horizontal_100cm,vertical_5cm,vertical_10cm,vertical_20cm,vertical_50cm,vertical_100cm"
 # 4-config subset for B/C/D — extreme baselines per direction, max signal
 SUBSET_STEREO="horizontal_5cm,horizontal_100cm,vertical_5cm,vertical_100cm"
-SEEDS="42"
+SEEDS="42,0,2026"
 
 # Default sigma values — flag for sanity check before launching
 SIGMA_2D=2.0      # pixels
@@ -46,19 +46,19 @@ run_A() {
 
 run_B() {
   echo ">>> Experiment B: matcher-falsification, 4 configs x synthetic_2d x 3 seeds = 12 runs"
-  uv run python scripts/train_stereo_cov.py $LAUNCHER_OVERRIDES \
+  uv run -m scripts.train_stereo_cov $LAUNCHER_OVERRIDES \
     experiment.label=B_falsif \
     loss.name=bearing_nll \
     correspondence.mode=synthetic \
     correspondence.sigma=$SIGMA_2D \
-    dataset.stereo_config=$ALL_STEREO \
+    dataset.stereo_config=$SUBSET_STEREO \
     training.seed=$SEEDS \
     dataset=sss
 }
 
 run_C() {
   echo ">>> Experiment C: loss ablation, 4 configs x pixel_nll x 3 seeds = 12 runs"
-  uv run python scripts/train_stereo_cov.py $LAUNCHER_OVERRIDES \
+  uv run -m scripts.train_stereo_cov $LAUNCHER_OVERRIDES \
     experiment.label=C_loss \
     loss.name=pixel_nll \
     correspondence.mode=real \
@@ -69,12 +69,12 @@ run_C() {
 
 run_D() {
   echo ">>> Experiment D: 3D positive control, 4 configs x synthetic_3d x 3 seeds = 12 runs"
-  uv run python scripts/train_stereo_cov.py $LAUNCHER_OVERRIDES \
+  uv run -m scripts.train_stereo_cov $LAUNCHER_OVERRIDES \
     experiment.label=D_3dctrl \
     loss.name=bearing_nll \
     correspondence.mode=synthetic_3d \
     correspondence.sigma=$SIGMA_3D \
-    dataset.stereo_config=$ALL_STEREO \
+    dataset.stereo_config=$SUBSET_STEREO \
     training.seed=$SEEDS \
     dataset=sss
 }

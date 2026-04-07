@@ -51,7 +51,7 @@ training:
   eval_batch_size: 32
   lr: 1e-4
   lr_gamma: 1.0              # constant LR — no decay
-  epochs: 100
+  epochs: 50
   grad_clip: 1.0
   checkpoint_interval: 25
   validation_interval: 1
