@@ -1,19 +1,19 @@
-experiment:
-  name: debug
-  hypothesis: ''
 dataset:
-  name: tartanair
-  root: /Volumes/T9/datasets/tartanair-v2
-  environments:
-  - ArchVizTinyHouseDay
-  sequences_train:
-  - P000
-  sequences_val:
-  - P000
-  left_images: image_lcam_front
-  right_images: image_rcam_front
+  name: semistaticsim
+  root: /tmp/sss
+  split_dir: test
+  scenes_train:
+  - 1
+  scenes_val:
+  - 1
+  stereo_config: horizontal_10cm
+  seed: 0
+  run_id: 0
   depth_source: gt
   max_depth: 200.0
+experiment:
+  name: semistaticsim_horizontal_10cm
+  hypothesis: ''
 augmentation:
   rotation: false
   rotation_range:
@@ -27,9 +27,9 @@ augmentation:
   noise_var: 0.0064
 matching:
   algorithm: orb
-  max_keypoints: 500
+  max_keypoints: 2000
   max_hamming: 64
-  max_epipolar_error: 2.0
+  max_epipolar_error: 3.0
   sampson_threshold: 4.0
 loss:
   name: bearing_nll
@@ -39,7 +39,8 @@ model:
   isotropic: false
   checkpoint: null
 training:
-  batch_size: 8
+  train_batch_size: 8
+  eval_batch_size: 8
   lr: 0.0001
   lr_gamma: 0.99995
   epochs: 50
@@ -47,10 +48,11 @@ training:
   checkpoint_interval: 5
   validation_interval: 1
   vis_interval: 5
-  device: mps
+  device: cuda
   num_workers: 4
   seed: 42
 logging:
+  log_dir: checkpoints
   wandb_project: stereo_covariance
   wandb_tags: []
   wandb_offline: false

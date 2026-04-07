@@ -1,0 +1,7 @@
+batch_idx=0 item=3
+stereo_config=horizontal_5cm
+seed=42
+ransac_reproj_threshold=3.0
+opencv_version=4.13.0
+error=OpenCV(4.13.0) /io/opencv/modules/core/src/matrix.cpp:764: error: (-215:Assertion failed) 0 <= _rowRange.start && _rowRange.start <= _rowRange.end && _rowRange.end <= m.rows in function 'Mat'
+

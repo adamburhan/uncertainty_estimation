@@ -10,7 +10,7 @@ submitit_folder: ${hydra.sweep.dir}/submitit/%j
 timeout_min: 1440 # 2 days: 2880 ; 12h : 720 ; 1 day: 1440
 nodes: 1
 name: ${hydra.job.name}
-array_parallelism: 10 # max num of tasks to run in parallel (via job array)
+array_parallelism: 20 # max num of tasks to run in parallel (via job array)
 # additional_parameters:
 #   exclude: "cn-a[001-011],cn-c[001-002,004-040]"
 
