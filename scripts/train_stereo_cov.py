@@ -13,6 +13,8 @@ Override any field:
         training.lr=5e-4
 """
 
+import hashlib
+import os
 import random
 from pathlib import Path
 
@@ -82,7 +84,12 @@ def main(cfg: DictConfig) -> None:
     from hydra.core.hydra_config import HydraConfig
     hydra_cfg = HydraConfig.get()
     output_dir = Path(hydra_cfg.runtime.output_dir)  # absolute path, works for both run and multirun
-    checkpoint_dir = output_dir / "checkpoints"
+
+    # Stable checkpoint dir keyed by experiment identity (NOT job num) so that
+    # preempted-and-requeued submitit jobs (which land in a new sweep dir) can
+    # find the previous epoch's checkpoint and resume from it.
+    scratch = os.environ.get("SCRATCH", str(output_dir.parent))
+    checkpoint_dir = Path(scratch) / "stereo-UQ" / "checkpoints" / cfg.experiment.name
     checkpoint_dir.mkdir(parents=True, exist_ok=True)
     OmegaConf.save(cfg, output_dir / "config.yaml")
 
@@ -149,6 +156,10 @@ def main(cfg: DictConfig) -> None:
         f"seed:{seed}",
         f"depth:{cfg.dataset.depth_source}",
     ]
+    # Deterministic wandb id derived from experiment identity. A preempted job
+    # that gets requeued (or a script restart) will reattach to the SAME wandb
+    # run instead of creating a duplicate.
+    wandb_id = hashlib.md5(cfg.experiment.name.encode()).hexdigest()[:16]
     wandb.init(
         project=cfg.logging.wandb_project,
         name=cfg.experiment.name,
@@ -156,6 +167,8 @@ def main(cfg: DictConfig) -> None:
         tags=tags,
         config=OmegaConf.to_container(cfg, resolve=True),
         mode="offline" if cfg.logging.wandb_offline else "online",
+        id=wandb_id,
+        resume="allow",
     )
 
     # Callbacks

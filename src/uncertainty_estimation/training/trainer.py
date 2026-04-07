@@ -379,8 +379,28 @@ def train_model(
 
     global_step = 0
     best_val_loss = float("inf")
+    start_epoch = 1
 
-    for epoch in range(1, num_epochs + 1):
+    # Resume from latest.pt if it exists (preemption recovery).
+    latest_path = os.path.join(checkpoint_dir, "latest.pt")
+    if os.path.exists(latest_path):
+        ckpt = torch.load(latest_path, map_location=device, weights_only=False)
+        model.load_state_dict(ckpt["model"])
+        optimizer.load_state_dict(ckpt["optimizer"])
+        scheduler.load_state_dict(ckpt["scheduler"])
+        start_epoch = ckpt["epoch"] + 1
+        global_step = ckpt.get("global_step", 0)
+        best_val_loss = ckpt.get("best_val_loss", float("inf"))
+        prev_metrics = ckpt.get("all_metrics")
+        if prev_metrics is not None:
+            for k in ("train", "val"):
+                for metric, values in prev_metrics[k].items():
+                    all_metrics[k][metric] = list(values)
+            all_metrics["epochs"] = list(prev_metrics["epochs"])
+        if verbose:
+            print(f"  Resumed from {latest_path} at epoch {start_epoch} (global_step={global_step})")
+
+    for epoch in range(start_epoch, num_epochs + 1):
         # Train 
         epoch_loss = 0.0
         epoch_kps = 0
@@ -452,7 +472,7 @@ def train_model(
                     "val_loss": val_metrics["loss"],
                 }, os.path.join(checkpoint_dir, f"{exp_name}_best_epoch={epoch}_loss={val_metrics['loss']:.4f}.pth"))
 
-        # Periodic checkpoint 
+        # Periodic checkpoint
         if epoch % checkpoint_period == 0:
             torch.save({
                 "epoch": epoch,
@@ -462,6 +482,24 @@ def train_model(
             }, os.path.join(checkpoint_dir, f"{exp_name}_epoch_{epoch:04d}.pth"))
             if verbose:
                 print(f"  Saved checkpoint at epoch {epoch}")
+
+        # Resume checkpoint (overwritten every epoch). Atomic write so a
+        # preemption mid-save can't corrupt the file the next attempt depends on.
+        latest_tmp = os.path.join(checkpoint_dir, "latest.pt.tmp")
+        torch.save({
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "global_step": global_step,
+            "best_val_loss": best_val_loss,
+            "all_metrics": {
+                "train": dict(all_metrics["train"]),
+                "val": dict(all_metrics["val"]),
+                "epochs": all_metrics["epochs"],
+            },
+        }, latest_tmp)
+        os.replace(latest_tmp, os.path.join(checkpoint_dir, "latest.pt"))
 
         # Visualization 
         if vis_fn is not None and epoch % vis_period == 0:
