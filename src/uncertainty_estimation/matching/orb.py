@@ -5,6 +5,74 @@ import torch
 import cv2 as cv
 
 
+def orb_single(
+    left: torch.Tensor,   # (1, H, W) float in [0, 1]
+    right: torch.Tensor,  # (1, H, W)
+    K: torch.Tensor,      # (3, 3)
+    max_keypoints: int = 2000,
+    max_hamming_distance: int = 64,
+    lowe_ratio: float = 0.75,
+    ransac_reproj_threshold: float = 1.0,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """ORB matching for a SINGLE stereo pair on CPU.
+
+    Designed to be called from a DataLoader worker (`__getitem__`) so that ORB
+    runs in parallel with GPU work. Returns variable-length tensors; the dataset
+    is responsible for collating them via a custom collate_fn.
+
+    Returns:
+        left_kps:  (P, 2) float32 — empty (0, 2) if matching failed
+        right_kps: (P, 2) float32
+    """
+    # Create the detector per-call: cv.ORB_create() objects are not safe to
+    # share across multiprocessing forks.
+    orb = cv.ORB_create(max_keypoints)
+    bf = cv.BFMatcher(cv.NORM_HAMMING, crossCheck=False)
+
+    left_img = (left[0].numpy() * 255.0).astype(np.uint8)
+    right_img = (right[0].numpy() * 255.0).astype(np.uint8)
+
+    empty = (torch.zeros(0, 2), torch.zeros(0, 2))
+
+    kp1, des1 = orb.detectAndCompute(left_img, None)
+    kp2, des2 = orb.detectAndCompute(right_img, None)
+    if des1 is None or des2 is None or len(des1) < 2 or len(des2) < 2:
+        return empty
+
+    matches = bf.knnMatch(des1, des2, k=2)
+    if not matches:
+        return empty
+
+    lkps_list = []
+    rkps_list = []
+    for pair in matches:
+        if len(pair) < 2:
+            continue
+        m, n = pair
+        if m.distance >= lowe_ratio * n.distance:
+            continue
+        if m.distance > max_hamming_distance:
+            continue
+        lkps_list.append(kp1[m.queryIdx].pt)
+        rkps_list.append(kp2[m.trainIdx].pt)
+
+    if len(lkps_list) < 8:
+        return empty
+
+    lkps = np.array(lkps_list, dtype=np.float32)
+    rkps = np.array(rkps_list, dtype=np.float32)
+
+    K_np = np.ascontiguousarray(K.numpy(), dtype=np.float64)
+    _, inlier_mask = cv.findEssentialMat(
+        lkps, rkps, K_np, cv.RANSAC, threshold=ransac_reproj_threshold,
+    )
+    if inlier_mask is None or inlier_mask.sum() == 0:
+        return empty
+
+    inliers = inlier_mask.ravel().astype(bool)
+    return torch.from_numpy(lkps[inliers]), torch.from_numpy(rkps[inliers])
+
+
 def ORB(
     images: torch.Tensor,  # B, 2, C, H, W  — dim 1: 0=left, 1=right
     device: torch.device,

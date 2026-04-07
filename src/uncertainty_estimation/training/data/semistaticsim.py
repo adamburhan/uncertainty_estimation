@@ -39,6 +39,7 @@ import torchvision.transforms.functional as TF
 from torch.utils.data import Dataset
 
 from uncertainty_estimation.training.data.augmentations.random_crop import RandomCropWithIntrinsics
+from uncertainty_estimation.matching.orb import orb_single
 
 
 # Fixed calibration 
@@ -104,12 +105,43 @@ def _load_image(path: Path) -> torch.Tensor:
     return (torch.from_numpy(img).float() / 255.0).unsqueeze(0)
 
 
+# Custom collate: stack fixed fields, pad variable-length kps + build mask.
+# Needed because ORB now runs in __getitem__ and yields a different number of
+# matches per sample, which the default collate cannot stack.
+
+def stereo_collate(samples):
+    out = {}
+    fixed = ["images", "K_inv", "T_lr", "baseline", "depth_left", "depth_right"]
+    for k in fixed:
+        if k in samples[0]:
+            out[k] = torch.stack([s[k] for s in samples])
+
+    if "left_kps" in samples[0]:
+        Ps = [s["left_kps"].shape[0] for s in samples]
+        Pmax = max(Ps) if Ps else 0
+        B = len(samples)
+        left_kps = torch.zeros(B, Pmax, 2)
+        right_kps = torch.zeros(B, Pmax, 2)
+        masks = torch.zeros(B, Pmax)
+        for i, s in enumerate(samples):
+            P = s["left_kps"].shape[0]
+            if P > 0:
+                left_kps[i, :P]  = s["left_kps"]
+                right_kps[i, :P] = s["right_kps"]
+                masks[i, :P] = 1.0
+        out["left_kps"]  = left_kps
+        out["right_kps"] = right_kps
+        out["match_mask"] = masks
+
+    return out
+
+
 # Dataset
 
 class SemiStaticSimStereoDataset(Dataset):
     """PyTorch Dataset for SemiStaticSim stereo covariance training."""
 
-    def __init__(self, dataset_cfg, aug_cfg, split: str) -> None:
+    def __init__(self, dataset_cfg, aug_cfg, split: str, matching_cfg) -> None:
         """
         Args:
             dataset_cfg: DatasetConfig node with fields:
@@ -123,6 +155,7 @@ class SemiStaticSimStereoDataset(Dataset):
         self.aug_cfg = aug_cfg
         self.depth_source = dataset_cfg.depth_source
         self.max_depth = dataset_cfg.max_depth
+        self.matching_cfg = matching_cfg
 
         # Parse stereo configuration
         self.T_lr, self.baseline = _parse_stereo_config(dataset_cfg.stereo_config)
@@ -238,5 +271,16 @@ class SemiStaticSimStereoDataset(Dataset):
         if depth_left is not None:
             batch["depth_left"]  = torch.from_numpy(depth_left.copy())
             batch["depth_right"] = torch.from_numpy(depth_right.copy())
+
+        if self.matching_cfg.algorithm == "orb":
+            lk, rk = orb_single(
+                left, right, K,
+                max_keypoints=self.matching_cfg.max_keypoints,
+                max_hamming_distance=self.matching_cfg.max_hamming,
+                lowe_ratio=self.matching_cfg.lowe_ratio,
+                ransac_reproj_threshold=self.matching_cfg.ransac_reproj_threshold,
+            )
+            batch["left_kps"]  = lk
+            batch["right_kps"] = rk
 
         return batch

@@ -35,10 +35,12 @@ def main(cfg: DictConfig) -> None:
     from torch.utils.data import DataLoader
     import wandb
 
-    from uncertainty_estimation.matching.orb import ORB
     from uncertainty_estimation.models.factory import build_model
     from uncertainty_estimation.training.data.tartanair import TartanAirLiveDataset
-    from uncertainty_estimation.training.data.semistaticsim import SemiStaticSimStereoDataset
+    from uncertainty_estimation.training.data.semistaticsim import (
+        SemiStaticSimStereoDataset,
+        stereo_collate,
+    )
     from uncertainty_estimation.training.losses import build_loss
     from uncertainty_estimation.training.trainer import train_model
 
@@ -55,7 +57,7 @@ def main(cfg: DictConfig) -> None:
         if cfg.dataset.name == "tartanair":
             return TartanAirLiveDataset(cfg.dataset, cfg.augmentation, split)
         if cfg.dataset.name == "semistaticsim":
-            return SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, split)
+            return SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, split, cfg.matching)
         raise ValueError(f"Unknown dataset '{cfg.dataset.name}'. Available: tartanair, semistaticsim")
 
     # Auto-derive experiment name and group from the experiment axes.
@@ -97,18 +99,24 @@ def main(cfg: DictConfig) -> None:
         batch_size=cfg.training.train_batch_size,
         shuffle=True,
         num_workers=cfg.training.num_workers,
+        collate_fn=stereo_collate,
+        persistent_workers=cfg.training.num_workers > 0,
     )
     train_loader_for_eval = DataLoader(
         train_dataset,
         batch_size=cfg.training.eval_batch_size,
         shuffle=False,
         num_workers=cfg.training.num_workers,
+        collate_fn=stereo_collate,
+        persistent_workers=cfg.training.num_workers > 0,
     )
     val_loader = DataLoader(
         val_dataset,
         batch_size=cfg.training.eval_batch_size,
         shuffle=False,
         num_workers=cfg.training.num_workers,
+        collate_fn=stereo_collate,
+        persistent_workers=cfg.training.num_workers > 0,
     )
 
     # Model, loss, optimizer 
@@ -117,14 +125,11 @@ def main(cfg: DictConfig) -> None:
     optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.training.lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=cfg.training.lr_gamma)
 
-    # Matching
-    matching_fn = lambda images, K: ORB(
-        images, device, K,
-        max_keypoints=cfg.matching.max_keypoints,
-        max_hamming_distance=cfg.matching.max_hamming,
-        lowe_ratio=cfg.matching.lowe_ratio,
-        ransac_reproj_threshold=cfg.matching.ransac_reproj_threshold,
-    )
+    # Matching is done per-sample in the dataloader workers (see
+    # SemiStaticSimStereoDataset.__getitem__). The matching_fn passed below is
+    # only used as a fallback if a batch lacks precomputed kps — kept for the
+    # tartanair dataset which hasn't been migrated yet.
+    matching_fn = None
 
     # WandB — every experiment axis becomes a tag for free-form slicing.
     # Parse "horizontal_10cm" / "vertical_50cm" into direction + magnitude tags.
@@ -158,7 +163,7 @@ def main(cfg: DictConfig) -> None:
 
     from uncertainty_estimation.visualization.covariance import visualize_covariances
     def vis_fn(model, batch):
-        figs = visualize_covariances(model, batch, matching_fn, device)
+        figs = visualize_covariances(model, batch, device)
         result = {k: wandb.Image(v) for k, v in figs.items()}
         for fig in figs.values():
             plt.close(fig)
