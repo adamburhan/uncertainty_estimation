@@ -47,8 +47,8 @@ model:
   checkpoint: null          # path to resume from, or null
 
 training:
-  train_batch_size: 32
-  eval_batch_size: 64
+  train_batch_size: 16
+  eval_batch_size: 32
   lr: 1e-4
   lr_gamma: 1.0              # constant LR — no decay
   epochs: 100
