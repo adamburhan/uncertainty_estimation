@@ -77,10 +77,10 @@ if __name__ == "__main__":
     ax.plot(epochs, val_mean, linestyle="--", label="val mean")
     ax.fill_between(epochs, val_mean - val_std, val_mean + val_std, alpha=0.2)
 
-    # optional: overlay faint individual seed curves
-    for r in records:
-        ax.plot(r["epochs"], r["train_loss"], alpha=0.2, linewidth=1)
-        ax.plot(r["epochs"], r["val_loss"], alpha=0.2, linewidth=1, linestyle="--")
+    # # optional: overlay faint individual seed curves
+    # for r in records:
+    #     ax.plot(r["epochs"], r["train_loss"], alpha=0.2, linewidth=1)
+    #     ax.plot(r["epochs"], r["val_loss"], alpha=0.2, linewidth=1, linestyle="--")
 
     ax.set_title(f"{records[0]['exp']} | {records[0]['orientation']} | {records[0]['baseline']} | mean ± std over seeds")
     ax.set_xlabel("Epoch")
