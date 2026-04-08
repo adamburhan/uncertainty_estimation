@@ -100,14 +100,14 @@ if __name__ == "__main__":
 
     configs = [
         ("horizontal", "5cm"),
-        ("horizontal", "10cm"),
-        ("horizontal", "20cm"),
-        ("horizontal", "50cm"),
+        # ("horizontal", "10cm"),
+        # ("horizontal", "20cm"),
+        # ("horizontal", "50cm"),
         ("horizontal", "100cm"),
         ("vertical", "5cm"),
-        ("vertical", "10cm"),
-        ("vertical", "20cm"),
-        ("vertical", "50cm"),
+        # ("vertical", "10cm"),
+        # ("vertical", "20cm"),
+        # ("vertical", "50cm"),
         ("vertical", "100cm"),
     ]
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         mean_best_val = float(val_mean[mean_best_idx])
         ax.scatter([mean_best_epoch], [mean_best_val], s=18, label="best val mean")
 
-        ax.set_title(f"A_stereo | {orientation} | {baseline}")
+        ax.set_title(f"B_stereo | {orientation} | {baseline}")
         ax.set_ylabel("Loss")
         ax.grid(True, alpha=0.4)
 
