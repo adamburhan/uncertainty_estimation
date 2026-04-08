@@ -56,7 +56,7 @@ if __name__ == "__main__":
     output_dir.mkdir(parents=True, exist_ok=True)
 
 
-    files = sorted(root.rglob("C_loss__semistaticsim_*_bearing_nll_real__seed*_metrics.pth"))
+    files = sorted(root.rglob("C_loss__semistaticsim_*_pixel_nll_real__seed*_metrics.pth"))
 
     if len(files) == 0:
         raise RuntimeError("No matching metrics files found.")
