@@ -40,7 +40,13 @@ def load_metrics(path):
 
 if __name__ == "__main__":
     root = Path("~/scratch/stereo-UQ/checkpoints").expanduser()
-    files = sorted(root.rglob("A_stereo__semistaticsim_horizontal_100cm_bearing_nll_real__seed*_metrics.pth"))
+    exp_dirs = sorted(root.glob("A_stereo__semistaticsim_*_bearing_nll_real__seed*"))
+
+    files = []
+    for d in exp_dirs:
+        metrics_file = d / f"{d.name}_metrics.pth"
+        if metrics_file.exists():
+            files.append(metrics_file)
 
     if len(files) == 0:
         raise RuntimeError("No matching metrics files found.")
