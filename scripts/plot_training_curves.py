@@ -60,4 +60,4 @@ if __name__ == "__main__":
     ax.legend()
 
     plt.tight_layout()
-    plt.show()
+    plt.savefig("training_curves.png")
