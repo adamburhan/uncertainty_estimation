@@ -56,7 +56,7 @@ if __name__ == "__main__":
     output_dir.mkdir(parents=True, exist_ok=True)
 
 
-    files = sorted(root.rglob("B_falsif__semistaticsim_*_bearing_nll_synthetic__seed*_metrics.pth"))
+    files = sorted(root.rglob("D_3dctrl__semistaticsim_*_bearing_nll_synthetic_3d__seed*_metrics.pth"))
 
     if len(files) == 0:
         raise RuntimeError("No matching metrics files found.")
@@ -75,7 +75,7 @@ if __name__ == "__main__":
         })
 
     # Save per-seed best epoch table
-    csv_path = output_dir / "best_epochs_B.csv"
+    csv_path = output_dir / "best_epochs_D.csv"
     with open(csv_path, "w", newline="") as csvfile:
         writer = csv.DictWriter(
             csvfile,
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         mean_best_val = float(val_mean[mean_best_idx])
         ax.scatter([mean_best_epoch], [mean_best_val], s=18, label="best val mean")
 
-        ax.set_title(f"B_stereo | {orientation} | {baseline}")
+        ax.set_title(f"D_stereo | {orientation} | {baseline}")
         ax.set_ylabel("Loss")
         ax.grid(True, alpha=0.4)
 
@@ -163,7 +163,7 @@ if __name__ == "__main__":
     axes[-1].set_xlabel("Epoch")
     plt.tight_layout()
 
-    fig_path = output_dir / "training_curves_B.png"
+    fig_path = output_dir / "training_curves_D.png"
     plt.savefig(fig_path, dpi=200, bbox_inches="tight")
     print(f"Saved figure to: {fig_path}")
     print(f"Saved CSV to: {csv_path}")
