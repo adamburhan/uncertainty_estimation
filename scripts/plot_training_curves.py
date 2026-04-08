@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from pathlib import Path
 
@@ -21,39 +22,67 @@ def parse_filename(path):
 
 def load_metrics(path):
     x = torch.load(path, map_location="cpu")
-    epochs = x["epochs"]
-    train_loss = x["train"]["loss"]
-    val_loss = x["val"]["loss"]
+    epochs = np.array(x["epochs"])
+    train_loss = np.array(x["train"]["loss"], dtype=float)
+    val_loss = np.array(x["val"]["loss"], dtype=float)
 
-    best_idx = min(range(len(val_loss)), key=lambda i: val_loss[i])
+    assert len(epochs) == len(train_loss) == len(val_loss)
+
+    best_idx = int(np.argmin(val_loss))
 
     return {
         "epochs": epochs,
         "train_loss": train_loss,
         "val_loss": val_loss,
-        "best_epoch": epochs[best_idx],
-        "best_val_loss": val_loss[best_idx],
+        "best_epoch": int(epochs[best_idx]),
+        "best_val_loss": float(val_loss[best_idx]),
     }
 
 if __name__ == "__main__":
-    root = Path("~/scratch/stereo-UQ/checkpoints/A_stereo__semistaticsim_horizontal_100cm_bearing_nll_real__seed0").expanduser()
-    f = root / "A_stereo__semistaticsim_horizontal_100cm_bearing_nll_real__seed0_metrics.pth"
+    root = Path("~/scratch/stereo-UQ/checkpoints").expanduser()
+    files = sorted(root.rglob("A_stereo__semistaticsim_horizontal_100cm_bearing_nll_real__seed*_metrics.pth"))
 
-    exp, orientation, baseline, seed = parse_filename(f)
-    metrics = load_metrics(f)
+    if len(files) == 0:
+        raise RuntimeError("No matching metrics files found.")
 
-    epochs = metrics["epochs"]
-    train_loss = metrics["train_loss"]
-    val_loss = metrics["val_loss"]
-    best_epoch = metrics["best_epoch"]
-    best_val_loss = metrics["best_val_loss"]
+    records = []
+    for f in files:
+        exp, orientation, baseline, seed = parse_filename(f)
+        metrics = load_metrics(f)
+        records.append({
+            "exp": exp,
+            "orientation": orientation,
+            "baseline": baseline,
+            "seed": seed,
+            "path": str(f),
+            **metrics,
+        })
+
+    epochs = records[0]["epochs"]
+
+    train_stack = np.stack([r["train_loss"] for r in records], axis=0)
+    val_stack = np.stack([r["val_loss"] for r in records], axis=0)
+
+    train_mean = train_stack.mean(axis=0)
+    train_std = train_stack.std(axis=0)
+
+    val_mean = val_stack.mean(axis=0)
+    val_std = val_stack.std(axis=0)
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.plot(epochs, train_loss, linestyle="-", label=f"train s{seed}")
-    ax.plot(epochs, val_loss, linestyle="--", label=f"val s{seed}")
-    ax.scatter([best_epoch], [best_val_loss], s=20, label="best val")
 
-    ax.set_title(f"{exp} | {orientation} | {baseline} | seed {seed}")
+    ax.plot(epochs, train_mean, label="train mean")
+    ax.fill_between(epochs, train_mean - train_std, train_mean + train_std, alpha=0.2)
+
+    ax.plot(epochs, val_mean, linestyle="--", label="val mean")
+    ax.fill_between(epochs, val_mean - val_std, val_mean + val_std, alpha=0.2)
+
+    # optional: overlay faint individual seed curves
+    for r in records:
+        ax.plot(r["epochs"], r["train_loss"], alpha=0.2, linewidth=1)
+        ax.plot(r["epochs"], r["val_loss"], alpha=0.2, linewidth=1, linestyle="--")
+
+    ax.set_title(f"{records[0]['exp']} | {records[0]['orientation']} | {records[0]['baseline']} | mean ± std over seeds")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
     ax.grid(True)
