@@ -55,7 +55,8 @@ if __name__ == "__main__":
     output_dir = Path("outputs")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    files = sorted(root.rglob("A_stereo__semistaticsim_*_bearing_nll_real__seed*_metrics.pth"))
+
+    files = sorted(root.rglob("B_falsif__semistaticsim_*_bearing_nll_synthetic__seed*_metrics.pth"))
 
     if len(files) == 0:
         raise RuntimeError("No matching metrics files found.")
@@ -74,7 +75,7 @@ if __name__ == "__main__":
         })
 
     # Save per-seed best epoch table
-    csv_path = output_dir / "best_epochs_A.csv"
+    csv_path = output_dir / "best_epochs_B.csv"
     with open(csv_path, "w", newline="") as csvfile:
         writer = csv.DictWriter(
             csvfile,
@@ -162,7 +163,7 @@ if __name__ == "__main__":
     axes[-1].set_xlabel("Epoch")
     plt.tight_layout()
 
-    fig_path = output_dir / "training_curves_A.png"
+    fig_path = output_dir / "training_curves_B.png"
     plt.savefig(fig_path, dpi=200, bbox_inches="tight")
     print(f"Saved figure to: {fig_path}")
     print(f"Saved CSV to: {csv_path}")
