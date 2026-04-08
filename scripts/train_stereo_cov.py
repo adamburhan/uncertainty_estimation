@@ -169,6 +169,7 @@ def main(cfg: DictConfig) -> None:
         mode="offline" if cfg.logging.wandb_offline else "online",
         id=wandb_id,
         resume="allow",
+        settings=wandb.Settings(init_timeout=300),
     )
 
     # Callbacks
