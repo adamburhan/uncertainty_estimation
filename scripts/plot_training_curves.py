@@ -26,10 +26,6 @@ def load_metrics(path):
     train_loss = np.array(x["train"]["loss"], dtype=float)
     val_loss = np.array(x["val"]["loss"], dtype=float)
 
-    eps = 1e-8
-    train_loss = np.maximum(train_loss, eps)
-    val_loss = np.maximum(val_loss, eps)
-
     assert len(epochs) == len(train_loss) == len(val_loss)
 
     best_idx = int(np.argmin(val_loss))
@@ -89,7 +85,6 @@ if __name__ == "__main__":
     ax.set_title(f"{records[0]['exp']} | {records[0]['orientation']} | {records[0]['baseline']} | mean ± std over seeds")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
-    ax.set_yscale("log")
     ax.grid(True)
     ax.legend()
 
