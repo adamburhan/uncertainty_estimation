@@ -26,6 +26,10 @@ def load_metrics(path):
     train_loss = np.array(x["train"]["loss"], dtype=float)
     val_loss = np.array(x["val"]["loss"], dtype=float)
 
+    eps = 1e-8
+    train_loss = np.maximum(train_loss, eps)
+    val_loss = np.maximum(val_loss, eps)
+
     assert len(epochs) == len(train_loss) == len(val_loss)
 
     best_idx = int(np.argmin(val_loss))
