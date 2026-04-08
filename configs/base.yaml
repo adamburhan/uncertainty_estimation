@@ -49,7 +49,7 @@ model:
 training:
   train_batch_size: 16
   eval_batch_size: 32
-  lr: 1e-3
+  lr: 1e-4
   lr_gamma: 1.0              # constant LR — no decay
   epochs: 50
   grad_clip: 1.0
