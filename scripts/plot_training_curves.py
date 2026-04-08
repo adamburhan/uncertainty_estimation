@@ -163,7 +163,7 @@ if __name__ == "__main__":
     axes[-1].set_xlabel("Epoch")
     plt.tight_layout()
 
-    fig_path = output_dir / "training_curves_D.png"
+    fig_path = output_dir / "training_curves_C.png"
     plt.savefig(fig_path, dpi=200, bbox_inches="tight")
     print(f"Saved figure to: {fig_path}")
     print(f"Saved CSV to: {csv_path}")
