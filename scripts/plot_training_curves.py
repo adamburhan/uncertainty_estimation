@@ -85,6 +85,7 @@ if __name__ == "__main__":
     ax.set_title(f"{records[0]['exp']} | {records[0]['orientation']} | {records[0]['baseline']} | mean ± std over seeds")
     ax.set_xlabel("Epoch")
     ax.set_ylabel("Loss")
+    ax.set_yscale("log")
     ax.grid(True)
     ax.legend()
 
