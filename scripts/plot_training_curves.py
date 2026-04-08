@@ -2,9 +2,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from pathlib import Path
+from collections import defaultdict
+import csv
 
 def parse_filename(path):
-    """example name: A_stereo__semistaticsim_horizontal_100cm_bearing_nll_real__seed0_metrics.pth"""
+    """
+    Example:
+    A_stereo__semistaticsim_horizontal_100cm_bearing_nll_real__seed0_metrics.pth
+    """
     name = path.name.replace("_metrics.pth", "")
     parts = name.split("__")
 
@@ -22,7 +27,8 @@ def parse_filename(path):
 
 def load_metrics(path):
     x = torch.load(path, map_location="cpu")
-    epochs = np.array(x["epochs"])
+
+    epochs = np.array(x["epochs"], dtype=int)
     train_loss = np.array(x["train"]["loss"], dtype=float)
     val_loss = np.array(x["val"]["loss"], dtype=float)
 
@@ -38,15 +44,18 @@ def load_metrics(path):
         "best_val_loss": float(val_loss[best_idx]),
     }
 
+def sort_key(config):
+    orientation, baseline = config
+    baseline_cm = int(baseline.replace("cm", ""))
+    orientation_order = 0 if orientation == "horizontal" else 1
+    return (orientation_order, baseline_cm)
+
 if __name__ == "__main__":
     root = Path("~/scratch/stereo-UQ/checkpoints").expanduser()
-    exp_dirs = sorted(root.glob("A_stereo__semistaticsim_*_bearing_nll_real__seed*"))
+    output_dir = Path("outputs")
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    files = []
-    for d in exp_dirs:
-        metrics_file = d / f"{d.name}_metrics.pth"
-        if metrics_file.exists():
-            files.append(metrics_file)
+    files = sorted(root.rglob("A_stereo__semistaticsim_*_bearing_nll_real__seed*_metrics.pth"))
 
     if len(files) == 0:
         raise RuntimeError("No matching metrics files found.")
@@ -64,35 +73,96 @@ if __name__ == "__main__":
             **metrics,
         })
 
-    epochs = records[0]["epochs"]
+    # Save per-seed best epoch table
+    csv_path = output_dir / "best_epochs_A.csv"
+    with open(csv_path, "w", newline="") as csvfile:
+        writer = csv.DictWriter(
+            csvfile,
+            fieldnames=["exp", "orientation", "baseline", "seed", "best_epoch", "best_val_loss", "path"]
+        )
+        writer.writeheader()
+        for r in records:
+            writer.writerow({
+                "exp": r["exp"],
+                "orientation": r["orientation"],
+                "baseline": r["baseline"],
+                "seed": r["seed"],
+                "best_epoch": r["best_epoch"],
+                "best_val_loss": r["best_val_loss"],
+                "path": r["path"],
+            })
 
-    train_stack = np.stack([r["train_loss"] for r in records], axis=0)
-    val_stack = np.stack([r["val_loss"] for r in records], axis=0)
+    # Group by config
+    grouped = defaultdict(list)
+    for r in records:
+        grouped[(r["orientation"], r["baseline"])].append(r)
 
-    train_mean = train_stack.mean(axis=0)
-    train_std = train_stack.std(axis=0)
+    configs = [
+        ("horizontal", "5cm"),
+        ("horizontal", "10cm"),
+        ("horizontal", "20cm"),
+        ("horizontal", "50cm"),
+        ("horizontal", "100cm"),
+        ("vertical", "5cm"),
+        ("vertical", "10cm"),
+        ("vertical", "20cm"),
+        ("vertical", "50cm"),
+        ("vertical", "100cm"),
+    ]
 
-    val_mean = val_stack.mean(axis=0)
-    val_std = val_stack.std(axis=0)
+    fig, axes = plt.subplots(nrows=len(configs), ncols=1, figsize=(10, 2.7 * len(configs)), sharex=True)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    if len(configs) == 1:
+        axes = [axes]
 
-    ax.plot(epochs, train_mean, label="train mean")
-    ax.fill_between(epochs, train_mean - train_std, train_mean + train_std, alpha=0.2)
+    for ax, config in zip(axes, configs):
+        orientation, baseline = config
+        group = sorted(grouped[config], key=lambda r: r["seed"])
 
-    ax.plot(epochs, val_mean, linestyle="--", label="val mean")
-    ax.fill_between(epochs, val_mean - val_std, val_mean + val_std, alpha=0.2)
+        if len(group) == 0:
+            ax.set_title(f"{orientation} | {baseline} | MISSING")
+            ax.axis("off")
+            continue
 
-    # # optional: overlay faint individual seed curves
-    # for r in records:
-    #     ax.plot(r["epochs"], r["train_loss"], alpha=0.2, linewidth=1)
-    #     ax.plot(r["epochs"], r["val_loss"], alpha=0.2, linewidth=1, linestyle="--")
+        # Optional safety check: all seeds should have same epoch schedule
+        ref_epochs = group[0]["epochs"]
+        for r in group[1:]:
+            assert np.array_equal(ref_epochs, r["epochs"]), f"Epoch mismatch in {config}"
 
-    ax.set_title(f"{records[0]['exp']} | {records[0]['orientation']} | {records[0]['baseline']} | mean ± std over seeds")
-    ax.set_xlabel("Epoch")
-    ax.set_ylabel("Loss")
-    ax.grid(True)
-    ax.legend()
+        train_stack = np.stack([r["train_loss"] for r in group], axis=0)
+        val_stack = np.stack([r["val_loss"] for r in group], axis=0)
 
+        train_mean = train_stack.mean(axis=0)
+        train_std = train_stack.std(axis=0)
+
+        val_mean = val_stack.mean(axis=0)
+        val_std = val_stack.std(axis=0)
+
+        epochs = ref_epochs
+
+        ax.plot(epochs, train_mean, label="train mean")
+        ax.fill_between(epochs, train_mean - train_std, train_mean + train_std, alpha=0.2)
+
+        ax.plot(epochs, val_mean, linestyle="--", label="val mean")
+        ax.fill_between(epochs, val_mean - val_std, val_mean + val_std, alpha=0.2)
+
+        mean_best_idx = int(np.argmin(val_mean))
+        mean_best_epoch = int(epochs[mean_best_idx])
+        mean_best_val = float(val_mean[mean_best_idx])
+        ax.scatter([mean_best_epoch], [mean_best_val], s=18, label="best val mean")
+
+        ax.set_title(f"A_stereo | {orientation} | {baseline}")
+        ax.set_ylabel("Loss")
+        ax.grid(True, alpha=0.4)
+
+        # only show legend once to reduce clutter
+        if config == configs[0]:
+            ax.legend()
+
+    axes[-1].set_xlabel("Epoch")
     plt.tight_layout()
-    plt.savefig("training_curves.png")
+
+    fig_path = output_dir / "training_curves_A.png"
+    plt.savefig(fig_path, dpi=200, bbox_inches="tight")
+    print(f"Saved figure to: {fig_path}")
+    print(f"Saved CSV to: {csv_path}")
