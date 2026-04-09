@@ -20,7 +20,7 @@ from uncertainty_estimation.training.trainer import _lookup_depth
 
 
 # ---- edit these for the one checkpoint you want to dump ----
-CKPT       = Path("/home/mila/a/adam.burhan/scratch/stereo-UQ/checkpoints/A_stereo__semistaticsim_horizontal_5cm_bearing_nll_real__seed0/'A_stereo__semistaticsim_horizontal_5cm_bearing_nll_real__seed0_best_epoch=10_loss=-32.8917.pth'")
+CKPT       = Path("/home/mila/a/adam.burhan/scratch/stereo-UQ/checkpoints/A_stereo__semistaticsim_horizontal_5cm_bearing_nll_real__seed0/A_stereo__semistaticsim_horizontal_5cm_bearing_nll_real__seed0_best_epoch=10_loss=-32.8917.pth")
 STEREO     = "horizontal_5cm"
 EXPERIMENT = "A_real"
 SEED       = 0
