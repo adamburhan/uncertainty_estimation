@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import chi2
 
-NPZ_PATH       = Path("outputs/eval/exp_D/D_synth_horizontal_100cm_seed0_sample10.npz")
+NPZ_PATH       = Path("outputs/eval/exp_B/B_synth_horizontal_100cm_seed0_sample20.npz")
 OUT_PATH       = Path("outputs/eval/one_cell.png")
 
 MAX_KPS        = 25      # subsample for readability
