@@ -20,11 +20,11 @@ from uncertainty_estimation.training.trainer import _lookup_depth
 
 
 CKPT_ROOT = Path("/home/mila/a/adam.burhan/scratch/stereo-UQ/checkpoints")
-EXPERIMENT = "B_falsif"
-LOSS_TAG   = "bearing_nll_synthetic"
+EXPERIMENT = "D_3dctrl"
+LOSS_TAG   = "bearing_nll_synthetic_3d"
 SEED       = 0
 DEVICE     = "cuda"
-OUT_DIR    = Path("outputs/eval/exp_B")
+OUT_DIR    = Path("outputs/eval/exp_D")
 
 # STEREO_CONFIGS = [
 #     "horizontal_5cm",  "horizontal_10cm", "horizontal_20cm", "horizontal_50cm", "horizontal_100cm",
@@ -92,7 +92,7 @@ def dump_for_config(stereo: str, ckpt_path: Path, sample_idxs: list[int]) -> Non
             depth_at_left_kps  = _lookup_depth(depth_left, left_kps)
 
         m = mask[0].cpu().numpy()
-        npz_path = OUT_DIR / f"B_synth_{stereo}_seed{SEED}_sample{sample_idx:02d}.npz"
+        npz_path = OUT_DIR / f"D_synth_{stereo}_seed{SEED}_sample{sample_idx:02d}.npz"
         np.savez(
             npz_path,
             image_left      = images[0, 0, 0].cpu().numpy(),
