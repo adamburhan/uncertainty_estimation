@@ -31,7 +31,7 @@ STEREO_CONFIGS = [
     "vertical_5cm",    "vertical_10cm",   "vertical_20cm",   "vertical_50cm",   "vertical_100cm",
 ]
 
-SAMPLE_IDXS = [0, 5, 10, 15, 20]
+SAMPLE_IDXS = [0, 10, 15, 20]
 
 
 def find_best_ckpt(stereo: str, seed: int) -> Path:
