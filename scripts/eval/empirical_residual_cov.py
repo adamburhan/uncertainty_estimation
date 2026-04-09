@@ -35,17 +35,24 @@ from uncertainty_estimation.training.trainer import (
 )
 
 
-OUT_NPZ      = Path("outputs/eval/empirical_cov.npz")
-OUT_FIG      = Path("outputs/eval/figs/empirical_cov_ellipses.png")
-
 MAX_SAMPLES  = 300        # cap per config — plenty for stable empirical cov
 BATCH_SIZE   = 8
 NUM_WORKERS  = 4
 DEVICE       = "cuda"
 SPLIT        = "train"
 CONFIDENCE   = 0.95
-CLIP_PCT     = 99.0       # drop top 1% ||r|| outliers before computing cov;
-                          # set to None to disable
+
+# Outlier clipping — exactly one of these must be set, the other must be None.
+#   CLIP_PCT  = 99.0   -> drop top 1% by ||r|| (relative to the data)
+#   CLIP_NORM = 5.0    -> drop residuals with ||r|| > 5 px (absolute cutoff)
+CLIP_PCT  = None
+CLIP_NORM = 5.0
+
+_clip_tag = (
+    f"pct{CLIP_PCT:.0f}" if CLIP_PCT is not None else f"norm{CLIP_NORM:.1f}px"
+)
+OUT_NPZ = Path(f"outputs/eval/empirical_cov_{_clip_tag}.npz")
+OUT_FIG = Path(f"outputs/eval/figs/empirical_cov_ellipses_{_clip_tag}.png")
 
 ROW_LABELS    = ["horizontal", "vertical"]
 COL_BASELINES = [5, 10, 20, 50, 100]
@@ -132,13 +139,20 @@ def _cov_summary(residuals: np.ndarray) -> dict:
     }
 
 
-def summarize(residuals: np.ndarray, clip_pct: float | None = None) -> dict:
+def summarize(
+    residuals: np.ndarray,
+    clip_pct: float | None = None,
+    clip_norm: float | None = None,
+) -> dict:
     """Compute UNCLIPPED and CLIPPED empirical cov + percentile stats.
 
-    Both summaries are kept so we can directly compare "what the data really
-    is" against "what survives outlier removal" — the diagnostic the meeting
-    discussion is built around.
+    Exactly one of `clip_pct` (percentile of ||r||) or `clip_norm` (absolute
+    pixel cutoff on ||r||) may be supplied. Passing both raises ValueError.
+    Passing neither leaves the "clipped" summary identical to the unclipped one.
     """
+    if clip_pct is not None and clip_norm is not None:
+        raise ValueError("summarize: pass at most one of clip_pct / clip_norm")
+
     if len(residuals) < 2:
         return {"n": len(residuals), "n_raw": len(residuals)}
 
@@ -148,10 +162,18 @@ def summarize(residuals: np.ndarray, clip_pct: float | None = None) -> dict:
     unclipped = _cov_summary(residuals)
     if clip_pct is not None:
         cutoff = float(np.percentile(norms, clip_pct))
+        clip_mode = "pct"
+    elif clip_norm is not None:
+        cutoff = float(clip_norm)
+        clip_mode = "norm"
+    else:
+        cutoff = float("inf")
+        clip_mode = "none"
+
+    if clip_mode != "none":
         residuals_used = residuals[norms <= cutoff]
         clipped = _cov_summary(residuals_used)
     else:
-        cutoff = float("inf")
         residuals_used = residuals
         clipped = unclipped
 
@@ -159,6 +181,7 @@ def summarize(residuals: np.ndarray, clip_pct: float | None = None) -> dict:
         # Sample sizes
         "n":           int(len(residuals_used)),
         "n_raw":       int(len(residuals)),
+        "clip_mode":   clip_mode,
         "clip_value":  cutoff,
         # Unclipped (what the data really is)
         "cov_unclipped":     unclipped["cov"],
@@ -186,17 +209,24 @@ def draw_ellipse(ax, cov, scale, **kwargs):
 
 
 def main():
+    assert (CLIP_PCT is None) != (CLIP_NORM is None), (
+        "Exactly one of CLIP_PCT / CLIP_NORM must be set (the other must be None)."
+    )
     OUT_NPZ.parent.mkdir(parents=True, exist_ok=True)
     OUT_FIG.parent.mkdir(parents=True, exist_ok=True)
 
+    clip_label = (
+        f"@{CLIP_PCT}%" if CLIP_PCT is not None else f"@{CLIP_NORM:.1f}px abs"
+    )
+
     results: dict[str, dict] = {}
     print(f"Aggregating left residuals across {SPLIT} set "
-          f"(<= {MAX_SAMPLES} samples / config)")
+          f"(<= {MAX_SAMPLES} samples / config)  |  clip {clip_label}")
     for orient in ROW_LABELS:
         for b in COL_BASELINES:
             stereo = f"{orient}_{b}cm"
             residuals, stats = collect_residuals(stereo)
-            summary = summarize(residuals, clip_pct=CLIP_PCT)
+            summary = summarize(residuals, clip_pct=CLIP_PCT, clip_norm=CLIP_NORM)
             results[stereo] = {**summary, **stats}
             pct      = summary.get("pct_norm", np.zeros(6))
             ev_u     = summary.get("eigvals_unclipped", np.zeros(2))
@@ -210,17 +240,17 @@ def main():
             print(f"  {stereo:18s}  "
                   f"n_valid={stats['n_residuals_valid']:7d}/{stats['n_residuals_total']:7d} "
                   f"({keep_pct:5.1f}%)")
-            print(f"    unclipped: rms={rms_u:7.3f}  "
+            print(f"    unclipped:    rms={rms_u:7.3f}  "
                   f"eig=({ev_u[0]:7.3f},{ev_u[-1]:8.3f})  angle={ang_u:+6.1f}°")
-            print(f"    clipped @{CLIP_PCT}%: rms={rms_c:7.3f}  "
+            print(f"    clipped {clip_label}: rms={rms_c:7.3f}  "
                   f"eig=({ev_c[0]:7.3f},{ev_c[-1]:8.3f})  angle={ang_c:+6.1f}°  "
-                  f"cutoff={summary.get('clip_value', 0):.2f}px")
+                  f"n={summary['n']}/{summary['n_raw']}  cutoff={summary['clip_value']:.2f}px")
             print(f"    ||r|| percentiles  p50={pct[0]:6.3f}  p90={pct[2]:6.3f}  "
                   f"p99={pct[4]:7.3f}  p99.9={pct[5]:8.3f}")
 
     # Save raw stats
     save_fields = (
-        "n", "n_raw", "clip_value",
+        "n", "n_raw", "clip_mode", "clip_value",
         "cov", "eigvals", "angle_deg", "rms",
         "cov_unclipped", "eigvals_unclipped", "angle_unclipped", "rms_unclipped",
         "pct_norm",
@@ -283,7 +313,8 @@ def main():
 
     fig.suptitle(
         f"Empirical residual covariance — {int(CONFIDENCE*100)}% ellipses  "
-        f"|  train split  |  <= {MAX_SAMPLES} samples / config",
+        f"|  train split  |  <= {MAX_SAMPLES} samples / config  "
+        f"|  clip {clip_label}",
         fontsize=13,
     )
     fig.tight_layout()
