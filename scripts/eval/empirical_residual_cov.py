@@ -44,6 +44,8 @@ NUM_WORKERS  = 4
 DEVICE       = "cuda"
 SPLIT        = "train"
 CONFIDENCE   = 0.95
+CLIP_PCT     = 99.0       # drop top 1% ||r|| outliers before computing cov;
+                          # set to None to disable
 
 ROW_LABELS    = ["horizontal", "vertical"]
 COL_BASELINES = [5, 10, 20, 50, 100]
@@ -118,21 +120,58 @@ def collect_residuals(stereo: str) -> tuple[np.ndarray, dict]:
     return residuals, stats
 
 
-def summarize(residuals: np.ndarray) -> dict:
-    """Compute empirical mean, 2x2 cov, eigendecomposition."""
-    if len(residuals) < 2:
-        return {"n": len(residuals)}
-    mean = residuals.mean(axis=0)
+def _cov_summary(residuals: np.ndarray) -> dict:
+    """2x2 cov + eigendecomposition + rms for a (N, 2) residual array."""
     cov  = np.cov(residuals.T)
     vals, vecs = np.linalg.eigh(cov)
-    angle_deg = float(np.degrees(np.arctan2(vecs[1, -1], vecs[0, -1])))
     return {
-        "n":         int(len(residuals)),
-        "mean":      mean,
         "cov":       cov,
-        "eigvals":   vals,                  # ascending
-        "angle_deg": angle_deg,             # principal-axis rotation in image coords
+        "eigvals":   vals,
+        "angle_deg": float(np.degrees(np.arctan2(vecs[1, -1], vecs[0, -1]))),
         "rms":       float(np.sqrt((residuals ** 2).sum(axis=1).mean())),
+    }
+
+
+def summarize(residuals: np.ndarray, clip_pct: float | None = None) -> dict:
+    """Compute UNCLIPPED and CLIPPED empirical cov + percentile stats.
+
+    Both summaries are kept so we can directly compare "what the data really
+    is" against "what survives outlier removal" — the diagnostic the meeting
+    discussion is built around.
+    """
+    if len(residuals) < 2:
+        return {"n": len(residuals), "n_raw": len(residuals)}
+
+    norms = np.linalg.norm(residuals, axis=1)
+    pct = np.percentile(norms, [50, 75, 90, 95, 99, 99.9])
+
+    unclipped = _cov_summary(residuals)
+    if clip_pct is not None:
+        cutoff = float(np.percentile(norms, clip_pct))
+        residuals_used = residuals[norms <= cutoff]
+        clipped = _cov_summary(residuals_used)
+    else:
+        cutoff = float("inf")
+        residuals_used = residuals
+        clipped = unclipped
+
+    return {
+        # Sample sizes
+        "n":           int(len(residuals_used)),
+        "n_raw":       int(len(residuals)),
+        "clip_value":  cutoff,
+        # Unclipped (what the data really is)
+        "cov_unclipped":     unclipped["cov"],
+        "eigvals_unclipped": unclipped["eigvals"],
+        "angle_unclipped":   unclipped["angle_deg"],
+        "rms_unclipped":     unclipped["rms"],
+        # Clipped (what's left after dropping the worst outliers)
+        "cov":       clipped["cov"],
+        "eigvals":   clipped["eigvals"],
+        "angle_deg": clipped["angle_deg"],
+        "rms":       clipped["rms"],
+        # Distribution shape
+        "pct_norm":  pct,            # [p50, p75, p90, p95, p99, p99.9]
     }
 
 
@@ -157,24 +196,41 @@ def main():
         for b in COL_BASELINES:
             stereo = f"{orient}_{b}cm"
             residuals, stats = collect_residuals(stereo)
-            summary = summarize(residuals)
+            summary = summarize(residuals, clip_pct=CLIP_PCT)
             results[stereo] = {**summary, **stats}
-            cov = summary.get("cov", np.zeros((2, 2)))
-            print(
-                f"  {stereo:18s}  n={summary.get('n', 0):7d}  "
-                f"rms={summary.get('rms', 0.0):6.3f}px  "
-                f"eig=({summary.get('eigvals', np.zeros(2))[0]:6.3f}, "
-                f"{summary.get('eigvals', np.zeros(2))[-1]:6.3f})  "
-                f"angle={summary.get('angle_deg', 0.0):+6.1f} deg"
-            )
+            pct      = summary.get("pct_norm", np.zeros(6))
+            ev_u     = summary.get("eigvals_unclipped", np.zeros(2))
+            ev_c     = summary.get("eigvals", np.zeros(2))
+            ang_u    = summary.get("angle_unclipped", 0.0)
+            ang_c    = summary.get("angle_deg", 0.0)
+            rms_u    = summary.get("rms_unclipped", 0.0)
+            rms_c    = summary.get("rms", 0.0)
+            keep_pct = 100.0 * stats["n_residuals_valid"] / max(stats["n_residuals_total"], 1)
+
+            print(f"  {stereo:18s}  "
+                  f"n_valid={stats['n_residuals_valid']:7d}/{stats['n_residuals_total']:7d} "
+                  f"({keep_pct:5.1f}%)")
+            print(f"    unclipped: rms={rms_u:7.3f}  "
+                  f"eig=({ev_u[0]:7.3f},{ev_u[-1]:8.3f})  angle={ang_u:+6.1f}°")
+            print(f"    clipped @{CLIP_PCT}%: rms={rms_c:7.3f}  "
+                  f"eig=({ev_c[0]:7.3f},{ev_c[-1]:8.3f})  angle={ang_c:+6.1f}°  "
+                  f"cutoff={summary.get('clip_value', 0):.2f}px")
+            print(f"    ||r|| percentiles  p50={pct[0]:6.3f}  p90={pct[2]:6.3f}  "
+                  f"p99={pct[4]:7.3f}  p99.9={pct[5]:8.3f}")
 
     # Save raw stats
+    save_fields = (
+        "n", "n_raw", "clip_value",
+        "cov", "eigvals", "angle_deg", "rms",
+        "cov_unclipped", "eigvals_unclipped", "angle_unclipped", "rms_unclipped",
+        "pct_norm",
+    )
     np.savez(
         OUT_NPZ,
         configs=np.array(list(results.keys())),
         **{f"{k}__{f}": np.asarray(v[f])
            for k, v in results.items()
-           for f in ("n", "mean", "cov", "eigvals", "angle_deg", "rms")
+           for f in save_fields
            if f in v},
     )
     print(f"Saved {OUT_NPZ}")
