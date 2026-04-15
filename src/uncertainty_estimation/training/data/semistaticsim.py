@@ -133,6 +133,11 @@ def stereo_collate(samples):
         out["right_kps"] = right_kps
         out["match_mask"] = masks
 
+    if "scene_id" in samples[0]:
+        out["scene_id"] = [s["scene_id"] for s in samples]
+    if "frame_idx" in samples[0]:
+        out["frame_idx"] = torch.tensor([s["frame_idx"] for s in samples], dtype=torch.long)
+
     return out
 
 
@@ -171,8 +176,8 @@ class SemiStaticSimStereoDataset(Dataset):
         run_id = dataset_cfg.run_id
         stereo_config = dataset_cfg.stereo_config
 
-        # Build index: list of (left_rgb, right_rgb, depth_left, depth_right)
-        self.frames: List[Tuple[Path, Path, Path, Path]] = []
+        # Build index: list of (left_rgb, right_rgb, depth_left, depth_right, scene_id, frame_idx)
+        self.frames: List[Tuple[Path, Path, Path, Path, str, int]] = []
         for scene_id in scenes:
             run_dir = root / str(scene_id) / str(seed) / "privileged" / f"run_{run_id}"
             if not run_dir.is_dir():
@@ -217,8 +222,10 @@ class SemiStaticSimStereoDataset(Dataset):
                 depth_left_files = [None] * len(left_files)
                 depth_right_files = [None] * len(left_files)
 
-            for lf, rf, dlf, drf in zip(left_files, right_files, depth_left_files, depth_right_files):
-                self.frames.append((lf, rf, dlf, drf))
+            for frame_idx, (lf, rf, dlf, drf) in enumerate(
+                zip(left_files, right_files, depth_left_files, depth_right_files)
+            ):
+                self.frames.append((lf, rf, dlf, drf, str(scene_id), frame_idx))
 
         crop_size = tuple(aug_cfg.crop_size)
         self.random_crop = (
@@ -230,7 +237,7 @@ class SemiStaticSimStereoDataset(Dataset):
         return len(self.frames)
 
     def __getitem__(self, idx: int) -> dict:
-        left_path, right_path, depth_left_path, depth_right_path = self.frames[idx]
+        left_path, right_path, depth_left_path, depth_right_path, scene_id, frame_idx = self.frames[idx]
 
         left  = _load_image(left_path)
         right = _load_image(right_path)
@@ -267,6 +274,8 @@ class SemiStaticSimStereoDataset(Dataset):
             "K_inv":    torch.linalg.inv(K),
             "T_lr":     self.T_lr.clone(),
             "baseline": torch.tensor(self.baseline),
+            "scene_id": scene_id,
+            "frame_idx": frame_idx,
         }
         if depth_left is not None:
             batch["depth_left"]  = torch.from_numpy(depth_left.copy())
