@@ -272,7 +272,7 @@ class SemiStaticSimStereoDataset(Dataset):
             batch["depth_left"]  = torch.from_numpy(depth_left.copy())
             batch["depth_right"] = torch.from_numpy(depth_right.copy())
 
-        if self.matching_cfg.algorithm == "orb":
+        if self.matching_cfg is not None and self.matching_cfg.algorithm == "orb":
             lk, rk = orb_single(
                 left, right, K,
                 max_keypoints=self.matching_cfg.max_keypoints,

@@ -63,14 +63,14 @@ def orb_single(
     rkps = np.array(rkps_list, dtype=np.float32)
 
     K_np = np.ascontiguousarray(K.numpy(), dtype=np.float64)
-    _, inlier_mask = cv.findEssentialMat(
-        lkps, rkps, K_np, cv.RANSAC, threshold=ransac_reproj_threshold,
-    )
-    if inlier_mask is None or inlier_mask.sum() == 0:
-        return empty
+    # _, inlier_mask = cv.findEssentialMat(
+    #     lkps, rkps, K_np, cv.RANSAC, threshold=ransac_reproj_threshold,
+    # )
+    # if inlier_mask is None or inlier_mask.sum() == 0:
+    #     return empty
 
-    inliers = inlier_mask.ravel().astype(bool)
-    return torch.from_numpy(lkps[inliers]), torch.from_numpy(rkps[inliers])
+    # inliers = inlier_mask.ravel().astype(bool)
+    return torch.from_numpy(lkps), torch.from_numpy(rkps)
 
 
 def ORB(
