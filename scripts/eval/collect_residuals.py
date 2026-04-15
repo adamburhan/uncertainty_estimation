@@ -37,7 +37,7 @@ def collect(stereo: str) -> tuple[np.ndarray, dict]:
     cfg = OmegaConf.merge(base, {"dataset": dataset})
     cfg.dataset.stereo_config = stereo
 
-    ds = SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, SPLIT, None)
+    ds = SemiStaticSimStereoDataset(cfg.dataset, cfg.augmentation, SPLIT, cfg.matching)
     n_take = min(MAX_SAMPLES, len(ds))
     subset = torch.utils.data.Subset(ds, list(range(n_take)))
     loader = DataLoader(
