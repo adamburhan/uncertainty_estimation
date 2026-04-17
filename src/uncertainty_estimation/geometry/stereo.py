@@ -78,6 +78,92 @@ def reproject(
         return kp_reproj.squeeze(0)
     return kp_reproj
 
+def unproject(
+    pixel: torch.Tensor,
+    depth: torch.Tensor,
+    K: torch.Tensor,
+) -> torch.Tensor:
+    """Unproject 2D pixels to 3D points in camera space.
+
+    Args:
+        pixel: (P, 2) or (B, P, 2)
+        depth: (P,) or (B, P)
+        K:     (3, 3) or (B, 3, 3)
+
+    Returns:
+        pts:   (P, 3) or (B, P, 3)
+    """
+    squeeze_batch = pixel.ndim == 2
+    if squeeze_batch:
+        pixel = pixel.unsqueeze(0)
+        depth = depth.unsqueeze(0)
+
+    B = pixel.shape[0]
+    if K.ndim == 2:
+        K = K.unsqueeze(0).expand(B, -1, -1)
+
+    K_inv = torch.linalg.inv(K)
+    homo  = F.pad(pixel, (0, 1), value=1.0)                    # (B, P, 3)
+    rays  = torch.einsum("bij,bpj->bpi", K_inv, homo)          # (B, P, 3)
+    pts   = depth.unsqueeze(-1) * rays                         # (B, P, 3)
+
+    return pts.squeeze(0) if squeeze_batch else pts
+
+
+def transform_points(
+    points: torch.Tensor,
+    T: torch.Tensor,
+) -> torch.Tensor:
+    """Apply a rigid transform to 3D points.
+
+    Args:
+        points: (P, 3) or (B, P, 3)
+        T:      (4, 4) or (B, 4, 4)
+
+    Returns:
+        (P, 3) or (B, P, 3)
+    """
+    squeeze_batch = points.ndim == 2
+    if squeeze_batch:
+        points = points.unsqueeze(0)
+
+    B = points.shape[0]
+    if T.ndim == 2:
+        T = T.unsqueeze(0).expand(B, -1, -1)
+
+    points_h    = F.pad(points, (0, 1), value=1.0)             # (B, P, 4)
+    transformed = torch.einsum("bij,bpj->bpi", T, points_h)   # (B, P, 4)
+    pts         = transformed[..., :3] / transformed[..., 3:4] # (B, P, 3)
+
+    return pts.squeeze(0) if squeeze_batch else pts
+
+
+def project(
+    points: torch.Tensor,
+    K: torch.Tensor,
+) -> torch.Tensor:
+    """Project 3D points to 2D pixel coordinates.
+
+    Args:
+        points: (P, 3) or (B, P, 3)
+        K:      (3, 3) or (B, 3, 3)
+
+    Returns:
+        (P, 2) or (B, P, 2)
+    """
+    squeeze_batch = points.ndim == 2
+    if squeeze_batch:
+        points = points.unsqueeze(0)
+
+    B = points.shape[0]
+    if K.ndim == 2:
+        K = K.unsqueeze(0).expand(B, -1, -1)
+
+    px      = torch.einsum("bij,bpj->bpi", K, points)         # (B, P, 3)
+    kp_proj = px[..., :2] / px[..., 2:3]                      # (B, P, 2)
+
+    return kp_proj.squeeze(0) if squeeze_batch else kp_proj
+
 
 def extract_covs(
     img_covs: torch.Tensor,  # B*2, H, W, 2, 2  (interleaved: left=0, right=1)

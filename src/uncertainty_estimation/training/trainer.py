@@ -64,58 +64,6 @@ def _in_bounds(kps: Tensor, H: int, W: int) -> Tensor:
     return (kps[..., 0] >= 0) & (kps[..., 0] < W) & (kps[..., 1] >= 0) & (kps[..., 1] < H)
 
 
-def _project_perturbed_3d(
-    kp_src: Tensor,
-    depth_src: Tensor,
-    K: Tensor,
-    K_inv: Tensor,
-    T_src_dst: Tensor,
-    sigma_3d: float,
-    min_z_dst: float = 0.1,
-) -> Tuple[Tensor, Tensor]:
-    """Unproject src kps to 3D, add isotropic Gaussian noise in 3D, project to dst camera.
-
-    Used by the synthetic_3d correspondence mode: the 3D-isotropic noise gets
-    pushed through the projection Jacobian, producing pixel-space residuals whose
-    anisotropy is determined by the depth + camera geometry.
-
-    Returns a per-keypoint validity mask flagging points whose perturbed 3D
-    location landed in front of the destination camera (z_dst > min_z_dst).
-    Without this guard, large sigmas push points behind the camera, the
-    projection divides by ~0, and pixel coords blow up to ±inf / NaN — feeding
-    NaN into the loss.
-
-    Args:
-        kp_src:    (B, P, 2) source-image keypoints (pixels, x=col, y=row)
-        depth_src: (B, P) depth at those keypoints (metres)
-        K:         (B, 3, 3) camera intrinsics
-        K_inv:     (B, 3, 3) inverse intrinsics
-        T_src_dst: (B, 4, 4) source-to-destination camera transform
-        sigma_3d:  std of isotropic 3D Gaussian noise (metres)
-        min_z_dst: minimum allowed depth in dst frame; points below are masked.
-
-    Returns:
-        kp_dst: (B, P, 2) noisy projected keypoints in the destination image.
-        valid:  (B, P) bool — True iff perturbed point is in front of dst camera.
-    """
-    homo = F.pad(kp_src, (0, 1), value=1.0)                       # (B, P, 3)
-    rays = torch.einsum("bij,bpj->bpi", K_inv, homo)              # (B, P, 3)
-    pts_src = depth_src.unsqueeze(-1) * rays                      # (B, P, 3) in src frame
-    pts_src = pts_src + sigma_3d * torch.randn_like(pts_src)      # perturb in 3D
-    pts_src_h = F.pad(pts_src, (0, 1), value=1.0)                 # (B, P, 4)
-    pts_dst = torch.einsum("bij,bpj->bpi", T_src_dst, pts_src_h)  # (B, P, 4)
-    z_dst = pts_dst[..., 2]                                       # (B, P)
-    valid = z_dst > min_z_dst
-    # Clamp z for the division so the kp_dst tensor itself stays finite even
-    # for invalid points (which will be masked out downstream). This avoids
-    # NaN/inf propagating into autograd graphs from masked entries.
-    z_safe = z_dst.clamp(min=min_z_dst).unsqueeze(-1)
-    px_xy = torch.einsum("bij,bpj->bpi", K, pts_dst[..., :3])[..., :2]
-    kp_dst = px_xy / z_safe
-    return kp_dst, valid
-
-
-
 # Forward step (shared by train and eval)
 
 def _forward_step(
