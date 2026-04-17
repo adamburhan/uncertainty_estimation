@@ -193,8 +193,6 @@ def main(cfg: DictConfig) -> None:
         scheduler=scheduler,
         loss_fn=loss_fn,
         matching_fn=matching_fn,
-        correspondence_mode=cfg.correspondence.mode,
-        correspondence_sigma=cfg.correspondence.sigma,
         device=device,
         depth_source=cfg.dataset.depth_source,
         max_depth=cfg.dataset.max_depth,
