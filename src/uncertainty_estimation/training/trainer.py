@@ -55,11 +55,7 @@ def _get_depth(
     if depth_source == "gt":
         raw_left = _lookup_depth(batch["depth_left"].to(device), left_kps)
         raw_right = _lookup_depth(batch["depth_right"].to(device), right_kps)
-        valid = (
-            (raw_left > 0.1) & (raw_left < max_depth)
-            & (raw_right > 0.1) & (raw_right < max_depth)
-        )
-        return raw_left.clamp(0.1, max_depth), raw_right.clamp(0.1, max_depth), valid
+        return raw_left, raw_right
     raise ValueError(f"Unknown depth_source '{depth_source}'. Available: gt, orb_disparity")
 
 
@@ -159,11 +155,10 @@ def _forward_step(
         masks = masks.to(device)
 
 
-    depth_left, depth_right, depth_valid = _get_depth(
+    depth_left, depth_right = _get_depth(
         depth_source, batch, left_kps, right_kps, focal, baseline, device, max_depth
     )
-    masks = masks * depth_valid
-
+  
     cov_preds = model(images)  # B*2, H, W, 2, 2
 
     # Reproject both directions (clean GT-based projection when depth_source="gt")
@@ -179,7 +174,7 @@ def _forward_step(
             raise ValueError("correspondence_sigma must be set when correspondence_mode='synthetic'")
         right_kps = right_kps_reproj + torch.randn_like(right_kps_reproj) * correspondence_sigma
         left_kps  = left_kps_reproj  + torch.randn_like(left_kps_reproj)  * correspondence_sigma
-        masks = depth_valid
+
     elif correspondence_mode == "synthetic_3d":
         # 3D-isotropic noise pushed through the projection Jacobian: residual is
         # geometry-shaped pixel noise. Positive control — should produce
@@ -195,7 +190,7 @@ def _forward_step(
         )
         # Mask out points where the perturbation pushed the 3D point behind
         # the dst camera (either direction) AND require valid GT depth.
-        masks = valid_lr & valid_rl & depth_valid
+        masks = valid_lr & valid_rl 
     elif correspondence_mode != "real":
         raise ValueError(
             f"Unknown correspondence_mode '{correspondence_mode}'. "
