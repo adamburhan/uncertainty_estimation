@@ -140,6 +140,7 @@ if __name__ == "__main__":
     from uncertainty_estimation.frontend.lk import LKTracker
     from uncertainty_estimation.uncertainty.temporal import TemporalUncertainty
     from uncertainty_estimation.uncertainty.isotropic import IsotropicUncertainty
+    from uncertainty_estimation.uncertainty.depth_variance import DepthVarianceUncertainty, DepthVarianceInflated
 
     if len(sys.argv) not in (2, 3):
         print("Usage: uv run python -m uncertainty_estimation.backend.vo_graph <path/to/P000> [n_frames]")
@@ -161,12 +162,18 @@ if __name__ == "__main__":
     landmarks = _filter_landmarks(landmarks, tracks, gt_poses, K, max_median_reproj_px=10.0)
     print(f"Landmarks after filter (≤10px median reproj): {len(landmarks)}")
 
+    depths = [f.depth for f in frames]
     estimators = [
         ("isotropic sigma=1",  IsotropicUncertainty(sigma=1.0),  "tab:orange"),
         ("isotropic sigma=5",  IsotropicUncertainty(sigma=5.0),  "tab:red"),
         ("isotropic sigma=30",  IsotropicUncertainty(sigma=30.0),  "tab:purple"),
         ("isotropic sigma=50",  IsotropicUncertainty(sigma=50.0),  "tab:brown"),
         ("temporal",  TemporalUncertainty(max_depth=1000.0, min_frame_gap=3, target_median_trace=64.0), "tab:cyan"),
+        ("depth-var alpha=500",   DepthVarianceUncertainty(depths=depths, sigma_base=1.0, alpha=500.0, max_depth=1000.0), "tab:green"),
+        ("temporal+depth-var α=500", DepthVarianceInflated(
+            base=TemporalUncertainty(max_depth=1000.0, min_frame_gap=3, target_median_trace=64.0),
+            depths=depths, alpha=500.0, max_depth=1000.0,
+        ), "tab:olive"),
     ]
 
     def run_suite(perturbed_poses, label_prefix):
