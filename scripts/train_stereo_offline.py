@@ -65,9 +65,9 @@ def main(cfg: DictConfig) -> None:
         model.train()
         train_loss, n = 0.0, 0
         for img, depth, target in train_loader:
-            img = img.to(device, non_blocking=True)
-            depth = depth.to(device, non_blocking=True)
-            target = target.to(device, non_blocking=True)
+            img = img.to(device)
+            depth = depth.to(device)
+            target = target.to(device)
             pred = model(pack(img, depth))
             loss = loss_fn(pred, target)
             opt.zero_grad()
