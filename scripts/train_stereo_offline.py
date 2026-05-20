@@ -38,21 +38,12 @@ def main(cfg: DictConfig) -> None:
     )
 
     modality = cfg.training.modality  # "image" | "depth" | "both"
-    in_channels = {"image": 3, "depth": 1, "both": 4}[modality]
 
-    def pack(img, depth):
-        if modality == "image":
-            return img
-        if modality == "depth":
-            return depth
-        return torch.cat([img, depth], dim=1)
-
-    model = ErrorRegressor(in_channels).to(device)
+    model = ErrorRegressor(modality=modality).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.training.lr)
     loss_fn = torch.nn.MSELoss()
 
-    print(f"modality={modality}  in_channels={in_channels}  "
-          f"params={sum(p.numel() for p in model.parameters())}")
+    print(f"modality={modality}  params={sum(p.numel() for p in model.parameters())}")
 
     wandb.init(
         project=cfg.logging.wandb_project,
@@ -68,7 +59,7 @@ def main(cfg: DictConfig) -> None:
             img = img.to(device)
             depth = depth.to(device)
             target = target.to(device)
-            pred = model(pack(img, depth))
+            pred = model(img, depth)
             loss = loss_fn(pred, target)
             opt.zero_grad()
             loss.backward()
@@ -84,7 +75,7 @@ def main(cfg: DictConfig) -> None:
                 img = img.to(device, non_blocking=True)
                 depth = depth.to(device, non_blocking=True)
                 target = target.to(device, non_blocking=True)
-                pred = model(pack(img, depth))
+                pred = model(img, depth)
                 test_loss += loss_fn(pred, target).item() * target.size(0)
                 n += target.size(0)
         test_loss /= n
