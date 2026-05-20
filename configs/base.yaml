@@ -47,6 +47,7 @@ model:
   checkpoint: null          # path to resume from, or null
 
 training:
+  modality: both             # error regressor: "image" | "depth" | "both"
   train_batch_size: 16
   eval_batch_size: 32
   lr: 1e-4
