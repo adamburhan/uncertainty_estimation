@@ -66,6 +66,7 @@ logging:
   wandb_project: stereo_covariance
   wandb_tags: []
   wandb_offline: false
+  checkpoint_dir: /home/adam/scratch/datasets/offline-stereo/checkpoints
 
 dataset:
   train_path: /home/adam/scratch/datasets/offline-stereo/stereo_dataset_train.npz

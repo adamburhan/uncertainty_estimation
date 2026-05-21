@@ -1,3 +1,4 @@
+import os
 import hydra
 from omegaconf import DictConfig
 
@@ -52,6 +53,10 @@ def main(cfg: DictConfig) -> None:
         mode="offline" if cfg.logging.wandb_offline else "online",
     )
 
+    checkpoint_dir = cfg.logging.checkpoint_dir
+    exp_name = cfg.experiment.name
+
+    best_test_loss = float("inf")
     for epoch in range(cfg.training.epochs):
         model.train()
         train_loss, n = 0.0, 0
@@ -79,6 +84,15 @@ def main(cfg: DictConfig) -> None:
                 test_loss += loss_fn(pred, target).item() * target.size(0)
                 n += target.size(0)
         test_loss /= n
+
+        if test_loss < best_test_loss:
+            best_test_loss = test_loss        
+        torch.save({
+            "epoch": epoch,
+            "model": model.state_dict(),
+            "optimizer": opt.state_dict(),
+            "test_loss": test_loss,
+        }, os.path.join(checkpoint_dir, f"{exp_name}_best_epoch={epoch}_loss={test_loss:.4f}.pth"))
 
         print(f"epoch {epoch+1:3d}  train {train_loss:.4f}  test {test_loss:.4f}")
         wandb.log({"epoch": epoch + 1, "train_loss": train_loss, "test_loss": test_loss})
