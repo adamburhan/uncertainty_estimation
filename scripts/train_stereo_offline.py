@@ -39,12 +39,14 @@ def main(cfg: DictConfig) -> None:
     )
 
     modality = cfg.training.modality  # "image" | "depth" | "both"
+    backbone = cfg.training.backbone  # "simple" | "resnet"
 
-    model = ErrorRegressor(modality=modality).to(device)
+    model = ErrorRegressor(modality=modality, backbone=backbone).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.training.lr)
     loss_fn = torch.nn.MSELoss()
 
-    print(f"modality={modality}  params={sum(p.numel() for p in model.parameters())}")
+    print(f"modality={modality}  backbone={backbone}  "
+          f"params={sum(p.numel() for p in model.parameters())}")
 
     wandb.init(
         project=cfg.logging.wandb_project,

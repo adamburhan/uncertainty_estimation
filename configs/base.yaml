@@ -48,6 +48,7 @@ model:
 
 training:
   modality: both             # error regressor: "image" | "depth" | "both"
+  backbone: simple           # error regressor: "simple" | "resnet"
   train_batch_size: 16
   eval_batch_size: 32
   lr: 1e-4
